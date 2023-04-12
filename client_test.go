@@ -128,7 +128,7 @@ var _ = Describe("Client", func() {
 				_ protocol.VersionNumber,
 			) quicConn {
 				remoteAddrChan <- sconn.RemoteAddr().String()
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run()
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				return conn
@@ -161,7 +161,7 @@ var _ = Describe("Client", func() {
 				_ protocol.VersionNumber,
 			) quicConn {
 				hostnameChan <- tlsConf.ServerName
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run()
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				return conn
@@ -194,7 +194,7 @@ var _ = Describe("Client", func() {
 				_ protocol.VersionNumber,
 			) quicConn {
 				hostnameChan <- tlsConf.ServerName
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				conn.EXPECT().run()
 				return conn
@@ -233,7 +233,7 @@ var _ = Describe("Client", func() {
 				_ protocol.VersionNumber,
 			) quicConn {
 				Expect(enable0RTT).To(BeFalse())
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run().Do(func() { close(run) })
 				c := make(chan struct{})
 				close(c)
@@ -276,7 +276,7 @@ var _ = Describe("Client", func() {
 				_ protocol.VersionNumber,
 			) quicConn {
 				Expect(enable0RTT).To(BeTrue())
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run().Do(func() { <-done })
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				conn.EXPECT().earlyConnReady().Return(readyChan)
@@ -323,7 +323,7 @@ var _ = Describe("Client", func() {
 				_ utils.Logger,
 				_ protocol.VersionNumber,
 			) quicConn {
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run().Return(testErr)
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				return conn
@@ -346,7 +346,7 @@ var _ = Describe("Client", func() {
 
 			connRunning := make(chan struct{})
 			defer close(connRunning)
-			conn := NewMockQuicConn(mockCtrl)
+			conn := NewMockQUICConn(mockCtrl)
 			conn.EXPECT().run().Do(func() {
 				<-connRunning
 			})
@@ -402,7 +402,7 @@ var _ = Describe("Client", func() {
 			var sconn sendConn
 			run := make(chan struct{})
 			connCreated := make(chan struct{})
-			conn := NewMockQuicConn(mockCtrl)
+			conn := NewMockQUICConn(mockCtrl)
 			newClientConnection = func(
 				connP sendConn,
 				_ connRunner,
@@ -544,7 +544,7 @@ var _ = Describe("Client", func() {
 				conf = configP
 				close(c)
 				// TODO: check connection IDs?
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run()
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				return conn
@@ -579,7 +579,7 @@ var _ = Describe("Client", func() {
 				_ utils.Logger,
 				versionP protocol.VersionNumber,
 			) quicConn {
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))
 				if counter == 0 {
 					Expect(pn).To(BeZero())
