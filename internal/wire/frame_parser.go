@@ -34,6 +34,10 @@ const (
 	connectionCloseFrameType    = 0x1c
 	applicationCloseFrameType   = 0x1d
 	handshakeDoneFrameType      = 0x1e
+	ackMPFrameType              = 0xbaba00
+	ackMPECNFrameType           = 0xbaba01
+	pathAbandonFrameType        = 0xbaba05
+	pathStatusFrameType         = 0xbaba06
 )
 
 type frameParser struct {

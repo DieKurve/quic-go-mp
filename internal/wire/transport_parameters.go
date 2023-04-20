@@ -57,6 +57,8 @@ const (
 	retrySourceConnectionIDParameterID         transportParameterID = 0x10
 	// RFC 9221
 	maxDatagramFrameSizeParameterID transportParameterID = 0x20
+	// draft-ietf-quic-multipath-04
+	enableMultipathIDParameterID transportParameterID = 0x0f739bbc1b666d04
 )
 
 // PreferredAddress is the value encoding in the preferred_address transport parameter
@@ -98,6 +100,8 @@ type TransportParameters struct {
 	ActiveConnectionIDLimit uint64
 
 	MaxDatagramFrameSize protocol.ByteCount
+
+	enableMultipath uint8 // negotiate the use of the multipath extension during the connection handshake
 }
 
 // Unmarshal the transport parameters
@@ -174,7 +178,7 @@ func (p *TransportParameters) unmarshal(r *bytes.Reader, sentBy protocol.Perspec
 				return fmt.Errorf("wrong length for stateless_reset_token: %d (expected 16)", paramLen)
 			}
 			var token protocol.StatelessResetToken
-			r.Read(token[:])
+			_, _ = r.Read(token[:])
 			p.StatelessResetToken = &token
 		case originalDestinationConnectionIDParameterID:
 			if sentBy == protocol.PerspectiveClient {
@@ -191,8 +195,19 @@ func (p *TransportParameters) unmarshal(r *bytes.Reader, sentBy protocol.Perspec
 			}
 			connID, _ := protocol.ReadConnectionID(r, int(paramLen))
 			p.RetrySourceConnectionID = &connID
+
+		case enableMultipathIDParameterID:
+			// if zero or parameter is absent the endpoints MUST fall back to normal QUIC with a single path
+			// if one both endpoints MUST use non-zero connection IDs
+			// if carrying packet does not contain a non-zero length connection ID, the receiver MUST treat this a  connection error of type TRANSPORT_PARAMETER_ERROR and close the connection
+			if err := p.readNumericTransportParameter(r, paramID, int(paramLen)); err != nil {
+				return err
+			}
+			if p.DisableActiveMigration {
+				p.enableMultipath = 0x0
+			}
 		default:
-			r.Seek(int64(paramLen), io.SeekCurrent)
+			_, _ = r.Seek(int64(paramLen), io.SeekCurrent)
 		}
 	}
 
@@ -321,6 +336,12 @@ func (p *TransportParameters) readNumericTransportParameter(
 		p.ActiveConnectionIDLimit = val
 	case maxDatagramFrameSizeParameterID:
 		p.MaxDatagramFrameSize = protocol.ByteCount(val)
+	case enableMultipathIDParameterID:
+		if p.enableMultipath == 0 && p.OriginalDestinationConnectionID.Len() == 0 {
+			return fmt.Errorf("zero length connection id is not allowed: %d", p.OriginalDestinationConnectionID.Len())
+		} else if p.enableMultipath > 0x1 {
+			return fmt.Errorf("unexpected value of enable_mulitpath: %d", p.enableMultipath)
+		}
 	default:
 		return fmt.Errorf("TransportParameter BUG: transport parameter %d not found", paramID)
 	}
@@ -416,6 +437,9 @@ func (p *TransportParameters) Marshal(pers protocol.Perspective) []byte {
 	if p.MaxDatagramFrameSize != protocol.InvalidByteCount {
 		b = p.marshalVarintParam(b, maxDatagramFrameSizeParameterID, uint64(p.MaxDatagramFrameSize))
 	}
+	// enable_multipath
+	b = quicvarint.Append(b, uint64(enableMultipathIDParameterID))
+	b = quicvarint.Append(b, uint64(p.enableMultipath))
 
 	if pers == protocol.PerspectiveClient && len(AdditionalTransportParametersClient) > 0 {
 		for k, v := range AdditionalTransportParametersClient {

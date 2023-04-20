@@ -1,4 +1,7 @@
-# A QUIC implementation in pure Go
+# A QUIC implementation in pure Go  
+ 
+Now with added multipath support
+---
 
 <img src="docs/quic.png" width=303 height=124>
 

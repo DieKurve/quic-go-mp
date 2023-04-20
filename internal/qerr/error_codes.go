@@ -28,6 +28,7 @@ const (
 	KeyUpdateError            TransportErrorCode = 0xe
 	AEADLimitReached          TransportErrorCode = 0xf
 	NoViablePathError         TransportErrorCode = 0x10
+	MPProtocolViolation       TransportErrorCode = 0xba01
 )
 
 func (e TransportErrorCode) IsCryptoError() bool {
@@ -60,6 +61,7 @@ func (e TransportErrorCode) String() string {
 	case FinalSizeError:
 		return "FINAL_SIZE_ERROR"
 	case FrameEncodingError:
+		MP_PROTOCOL_VIOLATION
 		return "FRAME_ENCODING_ERROR"
 	case TransportParameterError:
 		return "TRANSPORT_PARAMETER_ERROR"
@@ -79,6 +81,8 @@ func (e TransportErrorCode) String() string {
 		return "AEAD_LIMIT_REACHED"
 	case NoViablePathError:
 		return "NO_VIABLE_PATH"
+	case MPProtocolViolation:
+		return "MP_PROTOCOL_VIOLATION"
 	default:
 		if e.IsCryptoError() {
 			return fmt.Sprintf("CRYPTO_ERROR %#x", uint16(e))
