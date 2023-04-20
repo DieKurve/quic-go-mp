@@ -49,7 +49,7 @@ var _ = Describe("Server", func() {
 			Header:          *hdr,
 			PacketNumber:    0x42,
 			PacketNumberLen: protocol.PacketNumberLen4,
-		}).Append(buf.Data, protocol.VersionTLS)
+		}).Append(buf.Data, protocol.Version1)
 		Expect(err).ToNot(HaveOccurred())
 		n := len(buf.Data)
 		buf.Data = append(buf.Data, p...)
@@ -71,7 +71,7 @@ var _ = Describe("Server", func() {
 			Type:             protocol.PacketTypeInitial,
 			SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 			DestConnectionID: destConnID,
-			Version:          protocol.VersionTLS,
+			Version:          protocol.Version1,
 		}
 		p := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 		p.buffer = getPacketBuffer()
@@ -131,7 +131,7 @@ var _ = Describe("Server", func() {
 	})
 
 	It("setups with the right values", func() {
-		supportedVersions := []protocol.VersionNumber{protocol.VersionTLS}
+		supportedVersions := []protocol.VersionNumber{protocol.Version1}
 		requireAddrVal := func(net.Addr) bool { return true }
 		config := Config{
 			Versions:                 supportedVersions,
@@ -247,7 +247,7 @@ var _ = Describe("Server", func() {
 					Type:             protocol.PacketTypeInitial,
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 					Token:            retryToken,
 				}
 				p := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
@@ -267,7 +267,7 @@ var _ = Describe("Server", func() {
 					return true
 				})
 				tracer.EXPECT().TracerForConnection(gomock.Any(), protocol.PerspectiveServer, protocol.ParseConnectionID([]byte{0xde, 0xad, 0xc0, 0xde}))
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				serv.newConn = func(
 					_ sendConn,
 					_ connRunner,
@@ -413,7 +413,7 @@ var _ = Describe("Server", func() {
 					Type:             protocol.PacketTypeInitial,
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				packet := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				raddr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1337}
@@ -444,7 +444,7 @@ var _ = Describe("Server", func() {
 					Type:             protocol.PacketTypeInitial,
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				p := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				run := make(chan struct{})
@@ -463,7 +463,7 @@ var _ = Describe("Server", func() {
 				})
 				tracer.EXPECT().TracerForConnection(gomock.Any(), protocol.PerspectiveServer, protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				serv.newConn = func(
 					_ sendConn,
 					_ connRunner,
@@ -542,7 +542,7 @@ var _ = Describe("Server", func() {
 				) quicConn {
 					<-acceptConn
 					atomic.AddUint32(&counter, 1)
-					conn := NewMockQuicConn(mockCtrl)
+					conn := NewMockQUICConn(mockCtrl)
 					conn.EXPECT().handlePacket(gomock.Any()).MaxTimes(1)
 					conn.EXPECT().run().MaxTimes(1)
 					conn.EXPECT().Context().Return(context.Background()).MaxTimes(1)
@@ -574,7 +574,7 @@ var _ = Describe("Server", func() {
 
 			It("only creates a single connection for a duplicate Initial", func() {
 				var createdConn bool
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				serv.newConn = func(
 					_ sendConn,
 					runner connRunner,
@@ -622,7 +622,7 @@ var _ = Describe("Server", func() {
 					_ utils.Logger,
 					_ protocol.VersionNumber,
 				) quicConn {
-					conn := NewMockQuicConn(mockCtrl)
+					conn := NewMockQUICConn(mockCtrl)
 					conn.EXPECT().handlePacket(gomock.Any())
 					conn.EXPECT().run()
 					conn.EXPECT().Context().Return(context.Background())
@@ -673,7 +673,7 @@ var _ = Describe("Server", func() {
 				p := getInitial(protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 				ctx, cancel := context.WithCancel(context.Background())
 				connCreated := make(chan struct{})
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				serv.newConn = func(
 					_ sendConn,
 					runner connRunner,
@@ -779,7 +779,7 @@ var _ = Describe("Server", func() {
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
 					Token:            token,
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				packet := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				packet.data = append(packet.data, []byte("coalesced packet")...) // add some garbage to simulate a coalesced packet
@@ -817,7 +817,7 @@ var _ = Describe("Server", func() {
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
 					Token:            token,
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				packet := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				packet.remoteAddr = raddr
@@ -850,7 +850,7 @@ var _ = Describe("Server", func() {
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
 					Token:            token,
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				packet := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				packet.data[len(packet.data)-10] ^= 0xff // corrupt the packet
@@ -881,7 +881,7 @@ var _ = Describe("Server", func() {
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
 					Token:            token,
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				packet := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				packet.remoteAddr = raddr
@@ -906,7 +906,7 @@ var _ = Describe("Server", func() {
 					SrcConnectionID:  protocol.ParseConnectionID([]byte{5, 4, 3, 2, 1}),
 					DestConnectionID: protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}),
 					Token:            token,
-					Version:          protocol.VersionTLS,
+					Version:          protocol.Version1,
 				}
 				packet := getPacket(hdr, make([]byte, protocol.MinInitialPacketSize))
 				packet.data[len(packet.data)-10] ^= 0xff // corrupt the packet
@@ -961,7 +961,7 @@ var _ = Describe("Server", func() {
 			})
 
 			It("accepts new connections when the handshake completes", func() {
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 
 				done := make(chan struct{})
 				go func() {
@@ -1034,7 +1034,7 @@ var _ = Describe("Server", func() {
 		})
 
 		It("accepts new connections when they become ready", func() {
-			conn := NewMockQuicConn(mockCtrl)
+			conn := NewMockQUICConn(mockCtrl)
 
 			done := make(chan struct{})
 			go func() {
@@ -1107,7 +1107,7 @@ var _ = Describe("Server", func() {
 			) quicConn {
 				ready := make(chan struct{})
 				close(ready)
-				conn := NewMockQuicConn(mockCtrl)
+				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().handlePacket(gomock.Any())
 				conn.EXPECT().run()
 				conn.EXPECT().earlyConnReady().Return(ready)
@@ -1148,7 +1148,7 @@ var _ = Describe("Server", func() {
 			p := getInitial(protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 			ctx, cancel := context.WithCancel(context.Background())
 			connCreated := make(chan struct{})
-			conn := NewMockQuicConn(mockCtrl)
+			conn := NewMockQUICConn(mockCtrl)
 			serv.newConn = func(
 				_ sendConn,
 				runner connRunner,

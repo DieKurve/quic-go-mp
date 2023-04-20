@@ -121,7 +121,7 @@ var _ = Describe("Connection", func() {
 			tracer,
 			1234,
 			utils.DefaultLogger,
-			protocol.VersionTLS,
+			protocol.Version1,
 		).(*connection)
 		streamManager = NewMockStreamManager(mockCtrl)
 		conn.streamsMap = streamManager
@@ -1053,7 +1053,7 @@ var _ = Describe("Connection", func() {
 						Type:             protocol.PacketTypeHandshake,
 						DestConnectionID: connID,
 						SrcConnectionID:  destConnID,
-						Version:          protocol.VersionTLS,
+						Version:          protocol.Version1,
 						Length:           length,
 					},
 					PacketNumberLen: protocol.PacketNumberLen3,
@@ -1631,7 +1631,7 @@ var _ = Describe("Connection", func() {
 		})
 
 		It("sends a Path MTU probe packet", func() {
-			mtuDiscoverer := NewMockMtuDiscoverer(mockCtrl)
+			mtuDiscoverer := NewMockMTUDiscoverer(mockCtrl)
 			conn.mtuDiscoverer = mtuDiscoverer
 			conn.config.DisablePathMTUDiscovery = false
 			sph.EXPECT().SentPacket(gomock.Any())
@@ -2410,7 +2410,7 @@ var _ = Describe("Client Connection", func() {
 			tracer,
 			1234,
 			utils.DefaultLogger,
-			protocol.VersionTLS,
+			protocol.Version1,
 		).(*connection)
 		packer = NewMockPacker(mockCtrl)
 		conn.packer = packer

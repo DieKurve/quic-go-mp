@@ -40,10 +40,10 @@ var _ = Describe("Packet Handler Map", func() {
 				Type:             t,
 				DestConnectionID: connID,
 				Length:           length,
-				Version:          protocol.VersionTLS,
+				Version:          protocol.Version1,
 			},
 			PacketNumberLen: protocol.PacketNumberLen2,
-		}).Append(nil, protocol.VersionWhatever)
+		}).Append(nil, protocol.Version1)
 		Expect(err).ToNot(HaveOccurred())
 		return b
 	}
@@ -323,6 +323,7 @@ var _ = Describe("Packet Handler Map", func() {
 				}
 				// We're already storing the maximum number of queues. This packet will be dropped.
 				connID := protocol.ParseConnectionID([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9})
+				tracer.EXPECT().DroppedPacket(gomock.Any(), logging.PacketType0RTT, gomock.Any(), logging.PacketDropDOSPrevention)
 				handler.handlePacket(&receivedPacket{data: getPacketWithPacketType(connID, protocol.PacketType0RTT, 1)})
 				// Don't EXPECT any handlePacket() calls.
 				conn := NewMockPacketHandler(mockCtrl)
