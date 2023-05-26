@@ -37,6 +37,8 @@ type OliaSender struct {
 	// When true, texist slow start with large cutback of congestion window.
 	slowStartLargeReduction bool
 
+	defaultMinimumCongestionWindow protocol.PacketNumber
+
 	// Minimum congestion window in packets.
 	minCongestionWindow protocol.PacketNumber
 
@@ -74,9 +76,12 @@ func (o *OliaSender) TimeUntilSend(now time.Time, bytesInFlight protocol.ByteCou
 		return o.cubic.TimeUntilSend(o.GetCongestionWindow())
 	}
 	if o.GetCongestionWindow() > bytesInFlight {
-		return 0
+		// Returns time 0
+		return time.Time{}
 	}
-	return utils.InfDuration
+	// From: https://stackoverflow.com/a/25065327
+	// Returns the maximum UNIX time
+	return time.Unix(1<<63-1, 0)
 }
 
 func (o *OliaSender) OnPacketSent(sentTime time.Time, bytesInFlight protocol.ByteCount, packetNumber protocol.PacketNumber, bytes protocol.ByteCount, isRetransmittable bool) bool {
@@ -111,7 +116,7 @@ func (o *OliaSender) MaybeExitSlowStart() {
 	}
 }
 
-func (o *OliaSender) isCwndLimited(bytesInFlight protocol.ByteCount) bool {
+func (o *OliaSender) isCongestionWindowLimited(bytesInFlight protocol.ByteCount) bool {
 	congestionWindow := o.GetCongestionWindow()
 	if bytesInFlight >= congestionWindow {
 		return true
@@ -121,38 +126,37 @@ func (o *OliaSender) isCwndLimited(bytesInFlight protocol.ByteCount) bool {
 	return slowStartLimited || availableBytes <= maxBurstPackets
 }
 
-func getMaxCwnd(m map[protocol.PathID]*OliaSender) protocol.PacketNumber {
-	var bestCwnd protocol.PacketNumber
+func getMaxCongestionWindow(m map[protocol.PathID]*OliaSender) protocol.PacketNumber {
+	var bestCongestionWindow protocol.PacketNumber
 	for _, os := range m {
 		// TODO should we care about fast retransmit and RFC5681?
-		bestCwnd = utils.Max(bestCwnd, os.congestionWindow)
+		bestCongestionWindow = utils.Max(bestCongestionWindow, os.congestionWindow)
 	}
-	return bestCwnd
+	return bestCongestionWindow
 }
 
 func getRate(m map[protocol.PathID]*OliaSender, pathRTT time.Duration) protocol.ByteCount {
 	// We have to avoid a zero rate because it is used as a divisor
 	var rate protocol.ByteCount = 1
-	var tmpCwnd protocol.PacketNumber
+	var tmpCongestionWindow protocol.PacketNumber
 	var scaledNum uint64
 	for _, os := range m {
-		tmpCwnd = os.congestionWindow
-		scaledNum = oliaScale(uint64(tmpCwnd), scale) * uint64(pathRTT.Nanoseconds())
+		tmpCongestionWindow = os.congestionWindow
+		scaledNum = oliaScale(uint64(tmpCongestionWindow), scale) * uint64(pathRTT.Nanoseconds())
 		if os.rttStats.SmoothedRTT() != time.Duration(0) {
 			// XXX In MPTCP, we have an estimate of the RTT because of the handshake, not in QUIC...
 			rate += protocol.ByteCount(scaledNum / uint64(os.rttStats.SmoothedRTT().Nanoseconds()))
 		}
 	}
-	rate *= rate
-	return rate
+	//rate *= rate
+	return rate * rate
 }
 
-func (o *OliaSender) getEpsilon() {
-	// TODOi
+func (o *OliaSender) getAlpha() {
 	var tmpRTT time.Duration
 	var tmpBytes protocol.ByteCount
 
-	var tmpCwnd protocol.PacketNumber
+	var tmpCongestionWindow protocol.PacketNumber
 
 	var bestRTT time.Duration
 	var bestBytes protocol.ByteCount
@@ -161,7 +165,7 @@ func (o *OliaSender) getEpsilon() {
 	var BNotM uint8
 
 	// TODO: integrate this in the following loop - we just want to iterate once
-	maxCwnd := getMaxCwnd(o.oliaSenders)
+	maxCongestionWindow := getMaxCongestionWindow(o.oliaSenders)
 	for _, os := range o.oliaSenders {
 		tmpRTT = os.rttStats.SmoothedRTT() * os.rttStats.SmoothedRTT()
 		tmpBytes = os.olia.SmoothedBytesBetweenLosses()
@@ -171,11 +175,11 @@ func (o *OliaSender) getEpsilon() {
 		}
 	}
 
-	// TODO: integrate this here in getMaxCwnd and in the previous loop
+	// TODO: integrate this here in getMaxCongestionWindow and in the previous loop
 	// Find the size of M and BNotM
 	for _, os := range o.oliaSenders {
-		tmpCwnd = os.congestionWindow
-		if tmpCwnd == maxCwnd {
+		tmpCongestionWindow = os.congestionWindow
+		if tmpCongestionWindow == maxCongestionWindow {
 			M++
 		} else {
 			tmpRTT = os.rttStats.SmoothedRTT() * os.rttStats.SmoothedRTT()
@@ -186,34 +190,34 @@ func (o *OliaSender) getEpsilon() {
 		}
 	}
 
-	// Check if the path is in M or BNotM and set the value of epsilon accordingly
+	// Check if the path is in M or in B and not in M (BNotM) and set the value of alpha accordingly
 	for _, os := range o.oliaSenders {
 		if BNotM == 0 {
-			os.olia.epsilonNum = 0
-			os.olia.epsilonDen = 1
+			os.olia.alphaNum = 0
+			os.olia.alphaDen = 1
 		} else {
 			tmpRTT = os.rttStats.SmoothedRTT() * os.rttStats.SmoothedRTT()
 			tmpBytes = os.olia.SmoothedBytesBetweenLosses()
-			tmpCwnd = os.congestionWindow
+			tmpCongestionWindow = os.congestionWindow
 
-			if tmpCwnd < maxCwnd && int64(tmpBytes)*bestRTT.Nanoseconds() >= int64(bestBytes)*tmpRTT.Nanoseconds() {
-				os.olia.epsilonNum = 1
-				os.olia.epsilonDen = uint32(len(o.oliaSenders)) * uint32(BNotM)
-			} else if tmpCwnd == maxCwnd {
-				os.olia.epsilonNum = -1
-				os.olia.epsilonDen = uint32(len(o.oliaSenders)) * uint32(M)
+			if tmpCongestionWindow < maxCongestionWindow && int64(tmpBytes)*bestRTT.Nanoseconds() >= int64(bestBytes)*tmpRTT.Nanoseconds() {
+				os.olia.alphaNum = 1
+				os.olia.alphaDen = uint32(len(o.oliaSenders)) * uint32(BNotM)
+			} else if tmpCongestionWindow == maxCongestionWindow {
+				os.olia.alphaNum = -1
+				os.olia.alphaDen = uint32(len(o.oliaSenders)) * uint32(M)
 			} else {
-				os.olia.epsilonNum = 0
-				os.olia.epsilonDen = 1
+				os.olia.alphaNum = 0
+				os.olia.alphaDen = 1
 			}
 		}
 	}
 }
 
-func (o *OliaSender) maybeIncreaseCwnd(ackedPacketNumber protocol.PacketNumber, ackedBytes protocol.ByteCount, bytesInFlight protocol.ByteCount) {
+func (o *OliaSender) maybeIncreaseCongestionWindow(ackedPacketNumber protocol.PacketNumber, ackedBytes protocol.ByteCount, bytesInFlight protocol.ByteCount) {
 	// Do not increase the congestion window unless the sender is close to using
 	// the current window.
-	if !o.isCwndLimited(bytesInFlight) {
+	if !o.isCongestionWindowLimited(bytesInFlight) {
 		return
 	}
 	if o.congestionWindow >= o.maxTCPCongestionWindow {
@@ -224,10 +228,10 @@ func (o *OliaSender) maybeIncreaseCwnd(ackedPacketNumber protocol.PacketNumber, 
 		o.congestionWindow++
 		return
 	} else {
-		o.getEpsilon()
+		o.getAlpha()
 		rate := getRate(o.oliaSenders, o.rttStats.SmoothedRTT())
-		cwndScaled := oliaScale(uint64(o.congestionWindow), scale)
-		o.congestionWindow = utils.Min(o.maxTCPCongestionWindow, o.olia.CongestionWindowAfterAck(o.congestionWindow, rate, cwndScaled))
+		congestionWindowScaled := oliaScale(uint64(o.congestionWindow), scale)
+		o.congestionWindow = utils.Min(o.maxTCPCongestionWindow, o.olia.CongestionWindowAfterAck(o.congestionWindow, rate, congestionWindowScaled))
 	}
 }
 
@@ -239,12 +243,13 @@ func (o *OliaSender) OnPacketAcked(ackedPacketNumber protocol.PacketNumber, acke
 		return
 	}
 	o.olia.UpdateAckedSinceLastLoss(ackedBytes)
-	o.maybeIncreaseCwnd(ackedPacketNumber, ackedBytes, bytesInFlight)
+	o.maybeIncreaseCongestionWindow(ackedPacketNumber, ackedBytes, bytesInFlight)
 	if o.InSlowStart() {
 		o.hybridSlowStart.OnPacketAcked(ackedPacketNumber)
 	}
 }
 
+// OnPacketLost TODO find old implementation of connectionstats and prr
 func (o *OliaSender) OnPacketLost(packetNumber protocol.PacketNumber, lostBytes protocol.ByteCount, bytesInFlight protocol.ByteCount) {
 	// TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
 	// already sent should be treated as a single loss event, since it's expected.
@@ -270,7 +275,6 @@ func (o *OliaSender) OnPacketLost(packetNumber protocol.PacketNumber, lostBytes 
 	o.prr.OnPacketLost(bytesInFlight)
 	o.olia.OnPacketLost()
 
-	// TODO(chromium): Separate out all of slow start into a separate class.
 	if o.slowStartLargeReduction && o.InSlowStart() {
 		o.congestionWindow = o.congestionWindow - 1
 	} else {
@@ -337,7 +341,7 @@ func (o *OliaSender) SetSlowStartLargeReduction(enabled bool) {
 func (o *OliaSender) BandwidthEstimate() Bandwidth {
 	srtt := o.rttStats.SmoothedRTT()
 	if srtt == 0 {
-		// If we haven't measured an rtt, the bandwidth estimate is unknown.
+		// If we haven't measured a rtt, the bandwidth estimate is unknown.
 		return 0
 	}
 	return BandwidthFromDelta(o.GetCongestionWindow(), srtt)

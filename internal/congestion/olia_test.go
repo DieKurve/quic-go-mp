@@ -10,7 +10,7 @@ import (
 type OliaSender struct {
 	hybridSlowStart HybridSlowStart
 	prr             PrrSender
-	rttStats        *RTTStats
+	rttStats        *utils.RTTStats
 	stats           connectionStats
 	olia            *Olia
 	oliaSenders     map[protocol.PathID]*OliaSender
@@ -98,7 +98,7 @@ func (o *OliaSender) GetCongestionWindow() protocol.ByteCount {
 }
 
 func (o *OliaSender) GetSlowStartThreshold() protocol.ByteCount {
-	return protocol.ByteCount(o.slowstartThreshold) * protocol.DefaultTCPMSS
+	return protocol.ByteCount(o.slowstartThreshold) * protocol.MaxByteCount
 }
 
 func (o *OliaSender) ExitSlowstart() {
@@ -171,7 +171,7 @@ func (o *OliaSender) getEpsilon() {
 		}
 	}
 
-	// TODO: integrate this here in getMaxCwnd and in the previous loop
+	// TODO: integrate this here in getMaxCongestionWindow and in the previous loop
 	// Find the size of M and BNotM
 	for _, os := range o.oliaSenders {
 		tmpCwnd = os.congestionWindow
@@ -189,22 +189,22 @@ func (o *OliaSender) getEpsilon() {
 	// Check if the path is in M or BNotM and set the value of epsilon accordingly
 	for _, os := range o.oliaSenders {
 		if BNotM == 0 {
-			os.olia.epsilonNum = 0
-			os.olia.epsilonDen = 1
+			os.olia.alphaNum = 0
+			os.olia.alphaDen = 1
 		} else {
 			tmpRTT = os.rttStats.SmoothedRTT() * os.rttStats.SmoothedRTT()
 			tmpBytes = os.olia.SmoothedBytesBetweenLosses()
 			tmpCwnd = os.congestionWindow
 
 			if tmpCwnd < maxCwnd && int64(tmpBytes)*bestRTT.Nanoseconds() >= int64(bestBytes)*tmpRTT.Nanoseconds() {
-				os.olia.epsilonNum = 1
-				os.olia.epsilonDen = uint32(len(o.oliaSenders)) * uint32(BNotM)
+				os.olia.alphaNum = 1
+				os.olia.alphaDen = uint32(len(o.oliaSenders)) * uint32(BNotM)
 			} else if tmpCwnd == maxCwnd {
-				os.olia.epsilonNum = -1
-				os.olia.epsilonDen = uint32(len(o.oliaSenders)) * uint32(M)
+				os.olia.alphaNum = -1
+				os.olia.alphaDen = uint32(len(o.oliaSenders)) * uint32(M)
 			} else {
-				os.olia.epsilonNum = 0
-				os.olia.epsilonDen = 1
+				os.olia.alphaNum = 0
+				os.olia.alphaDen = 1
 			}
 		}
 	}
