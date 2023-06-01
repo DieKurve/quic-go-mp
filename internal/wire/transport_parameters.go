@@ -101,7 +101,7 @@ type TransportParameters struct {
 
 	MaxDatagramFrameSize protocol.ByteCount
 
-	enableMultipath uint8 // negotiate the use of the multipath extension during the connection handshake
+	EnableMultipath uint8 // negotiate the use of the multipath extension during the connection handshake
 }
 
 // Unmarshal the transport parameters
@@ -198,13 +198,13 @@ func (p *TransportParameters) unmarshal(r *bytes.Reader, sentBy protocol.Perspec
 
 		case enableMultipathIDParameterID:
 			// if zero or parameter is absent the endpoints MUST fall back to normal QUIC with a single path
-			// if one both endpoints MUST use non-zero connection IDs
-			// if carrying packet does not contain a non-zero length connection ID, the receiver MUST treat this a  connection error of type TRANSPORT_PARAMETER_ERROR and close the connection
+			// if one, both endpoints MUST use non-zero connection IDs
+			// if carrying packet does not contain a non-zero length connection ID, the receiver MUST treat this a connection error of type TRANSPORT_PARAMETER_ERROR and close the connection
 			if err := p.readNumericTransportParameter(r, paramID, int(paramLen)); err != nil {
 				return err
 			}
 			if p.DisableActiveMigration {
-				p.enableMultipath = 0x0
+				p.EnableMultipath = 0x0
 			}
 		default:
 			_, _ = r.Seek(int64(paramLen), io.SeekCurrent)
@@ -337,11 +337,12 @@ func (p *TransportParameters) readNumericTransportParameter(
 	case maxDatagramFrameSizeParameterID:
 		p.MaxDatagramFrameSize = protocol.ByteCount(val)
 	case enableMultipathIDParameterID:
-		if p.enableMultipath == 0 && p.OriginalDestinationConnectionID.Len() == 0 {
+		if p.EnableMultipath == 0x0 && p.OriginalDestinationConnectionID.Len() == 0 {
 			return fmt.Errorf("zero length connection id is not allowed: %d", p.OriginalDestinationConnectionID.Len())
-		} else if p.enableMultipath > 0x1 {
-			return fmt.Errorf("unexpected value of enable_mulitpath: %d", p.enableMultipath)
+		} else if p.EnableMultipath > 0x1 {
+			return fmt.Errorf("unexpected value of enable_mulitpath: %d", p.EnableMultipath)
 		}
+		p.EnableMultipath = uint8(val)
 	default:
 		return fmt.Errorf("TransportParameter BUG: transport parameter %d not found", paramID)
 	}
@@ -439,7 +440,7 @@ func (p *TransportParameters) Marshal(pers protocol.Perspective) []byte {
 	}
 	// enable_multipath
 	b = quicvarint.Append(b, uint64(enableMultipathIDParameterID))
-	b = quicvarint.Append(b, uint64(p.enableMultipath))
+	b = quicvarint.Append(b, uint64(p.EnableMultipath))
 
 	if pers == protocol.PerspectiveClient && len(AdditionalTransportParametersClient) > 0 {
 		for k, v := range AdditionalTransportParametersClient {
@@ -517,7 +518,7 @@ func (p *TransportParameters) String() string {
 		logParams = append(logParams, p.RetrySourceConnectionID)
 	}
 	logString += "InitialMaxStreamDataBidiLocal: %d, InitialMaxStreamDataBidiRemote: %d, InitialMaxStreamDataUni: %d, InitialMaxData: %d, MaxBidiStreamNum: %d, MaxUniStreamNum: %d, MaxIdleTimeout: %s, AckDelayExponent: %d, MaxAckDelay: %s, ActiveConnectionIDLimit: %d"
-	logParams = append(logParams, []interface{}{p.InitialMaxStreamDataBidiLocal, p.InitialMaxStreamDataBidiRemote, p.InitialMaxStreamDataUni, p.InitialMaxData, p.MaxBidiStreamNum, p.MaxUniStreamNum, p.MaxIdleTimeout, p.AckDelayExponent, p.MaxAckDelay, p.ActiveConnectionIDLimit}...)
+	logParams = append(logParams, []interface{}{p.InitialMaxStreamDataBidiLocal, p.InitialMaxStreamDataBidiRemote, p.InitialMaxStreamDataUni, p.InitialMaxData, p.MaxBidiStreamNum, p.MaxUniStreamNum, p.MaxIdleTimeout, p.AckDelayExponent, p.MaxAckDelay, p.ActiveConnectionIDLimit, p.EnableMultipath}...)
 	if p.StatelessResetToken != nil { // the client never sends a stateless reset token
 		logString += ", StatelessResetToken: %#x"
 		logParams = append(logParams, *p.StatelessResetToken)
@@ -526,6 +527,9 @@ func (p *TransportParameters) String() string {
 		logString += ", MaxDatagramFrameSize: %d"
 		logParams = append(logParams, p.MaxDatagramFrameSize)
 	}
+	logString += ", EnableMultipath: %d"
+	logParams = append(logParams, p.EnableMultipath)
+
 	logString += "}"
 	return fmt.Sprintf(logString, logParams...)
 }
