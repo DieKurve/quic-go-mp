@@ -59,7 +59,7 @@ var _ = Describe("Transport Parameters", func() {
 			ActiveConnectionIDLimit:         123,
 			MaxDatagramFrameSize:            876,
 		}
-		Expect(p.String()).To(Equal("&wire.TransportParameters{OriginalDestinationConnectionID: deadbeef, InitialSourceConnectionID: decafbad, RetrySourceConnectionID: deadc0de, InitialMaxStreamDataBidiLocal: 1234, InitialMaxStreamDataBidiRemote: 2345, InitialMaxStreamDataUni: 3456, InitialMaxData: 4567, MaxBidiStreamNum: 1337, MaxUniStreamNum: 7331, MaxIdleTimeout: 42s, AckDelayExponent: 14, MaxAckDelay: 37ms, ActiveConnectionIDLimit: 123, StatelessResetToken: 0x112233445566778899aabbccddeeff00, MaxDatagramFrameSize: 876}"))
+		Expect(p.String()).To(Equal("&wire.TransportParameters{OriginalDestinationConnectionID: deadbeef, InitialSourceConnectionID: decafbad, RetrySourceConnectionID: deadc0de, InitialMaxStreamDataBidiLocal: 1234, InitialMaxStreamDataBidiRemote: 2345, InitialMaxStreamDataUni: 3456, InitialMaxData: 4567, MaxBidiStreamNum: 1337, MaxUniStreamNum: 7331, MaxIdleTimeout: 42s, AckDelayExponent: 14, MaxAckDelay: 37ms, ActiveConnectionIDLimit: 123, StatelessResetToken: 0x112233445566778899aabbccddeeff00, MaxDatagramFrameSize: 876, EnableMultipath: 0}"))
 	})
 
 	It("has a string representation, if there's no stateless reset token, no Retry source connection id and no datagram support", func() {
@@ -78,7 +78,7 @@ var _ = Describe("Transport Parameters", func() {
 			ActiveConnectionIDLimit:         89,
 			MaxDatagramFrameSize:            protocol.InvalidByteCount,
 		}
-		Expect(p.String()).To(Equal("&wire.TransportParameters{OriginalDestinationConnectionID: deadbeef, InitialSourceConnectionID: (empty), InitialMaxStreamDataBidiLocal: 1234, InitialMaxStreamDataBidiRemote: 2345, InitialMaxStreamDataUni: 3456, InitialMaxData: 4567, MaxBidiStreamNum: 1337, MaxUniStreamNum: 7331, MaxIdleTimeout: 42s, AckDelayExponent: 14, MaxAckDelay: 37s, ActiveConnectionIDLimit: 89}"))
+		Expect(p.String()).To(Equal("&wire.TransportParameters{OriginalDestinationConnectionID: deadbeef, InitialSourceConnectionID: (empty), InitialMaxStreamDataBidiLocal: 1234, InitialMaxStreamDataBidiRemote: 2345, InitialMaxStreamDataUni: 3456, InitialMaxData: 4567, MaxBidiStreamNum: 1337, MaxUniStreamNum: 7331, MaxIdleTimeout: 42s, AckDelayExponent: 14, MaxAckDelay: 37s, ActiveConnectionIDLimit: 89, EnableMultipath: 0}"))
 	})
 
 	It("marshals and unmarshals", func() {
@@ -102,6 +102,7 @@ var _ = Describe("Transport Parameters", func() {
 			MaxAckDelay:                     42 * time.Millisecond,
 			ActiveConnectionIDLimit:         2 + getRandomValueUpTo(math.MaxInt64-2),
 			MaxDatagramFrameSize:            protocol.ByteCount(getRandomValue()),
+			EnableMultipath:                 0x1,
 		}
 		data := params.Marshal(protocol.PerspectiveServer)
 
@@ -123,6 +124,7 @@ var _ = Describe("Transport Parameters", func() {
 		Expect(p.MaxAckDelay).To(Equal(42 * time.Millisecond))
 		Expect(p.ActiveConnectionIDLimit).To(Equal(params.ActiveConnectionIDLimit))
 		Expect(p.MaxDatagramFrameSize).To(Equal(params.MaxDatagramFrameSize))
+		Expect(p.EnableMultipath).To(Equal(uint8(0)))
 	})
 
 	It("marshals additional transport parameters (used for testing large ClientHellos)", func() {
@@ -415,6 +417,29 @@ var _ = Describe("Transport Parameters", func() {
 		Expect((&TransportParameters{}).Unmarshal(b, protocol.PerspectiveClient)).To(MatchError(&qerr.TransportError{
 			ErrorCode:    qerr.TransportParameterError,
 			ErrorMessage: "client sent an original_destination_connection_id",
+		}))
+	})
+
+	It("errors if the enable_multipath value is unexpected", func() {
+		data := (&TransportParameters{
+			ActiveConnectionIDLimit: 2,
+			EnableMultipath:         0x2}).Marshal(protocol.PerspectiveServer)
+		p := &TransportParameters{}
+		Expect(p.Unmarshal(data, protocol.PerspectiveServer)).To(MatchError(&qerr.TransportError{
+			ErrorCode:    8,
+			ErrorMessage: "unexpected value of enable_multipath: 2",
+		}))
+	})
+
+	It("errors if the enable_multipath value is one and connectionid length is zero", func() {
+		data := (&TransportParameters{
+			OriginalDestinationConnectionID: protocol.ConnectionID{},
+			ActiveConnectionIDLimit:         2,
+			EnableMultipath:                 1}).Marshal(protocol.PerspectiveServer)
+		p := &TransportParameters{}
+		Expect(p.Unmarshal(data, protocol.PerspectiveServer)).To(MatchError(&qerr.TransportError{
+			ErrorCode:    8,
+			ErrorMessage: "zero length connection id is not allowed: 0",
 		}))
 	})
 
