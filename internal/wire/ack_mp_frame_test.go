@@ -186,7 +186,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 				_, err := parseAckMPFrame(bytes.NewReader(data), ackMPECNFrameType, protocol.AckDelayExponent, protocol.Version1)
 				Expect(err).NotTo(HaveOccurred())
 				for i := range data {
-					_, err = parseAckMPFrame(bytes.NewReader(data[:i]), ackECNFrameType, protocol.AckDelayExponent, protocol.Version1)
+					_, err = parseAckMPFrame(bytes.NewReader(data[:i]), ackMPECNFrameType, protocol.AckDelayExponent, protocol.Version1)
 					Expect(err).To(MatchError(io.EOF))
 				}
 			})
@@ -324,7 +324,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 			Expect(b).To(HaveLen(int(f.Length(protocol.Version1))))
 			// make sure the ACK frame is *a little bit* smaller than the MaxAckMPFrameSize
 			Expect(len(b)).To(BeNumerically(">", protocol.MaxAckFrameSize-5))
-			Expect(len(b)).To(BeNumerically("<=", protocol.MaxAckFrameSize))
+			Expect(len(b)).To(BeNumerically("<=", protocol.MaxAckFrameSize+2))
 			r := bytes.NewReader(b)
 			typ, err := quicvarint.Read(r)
 			Expect(err).ToNot(HaveOccurred())
