@@ -20,6 +20,7 @@ with associated ECN marks received on the connection up to this point
 
 // A AckMPFrame as described by draft-ietf-quic-multipath (version 4)
 type AckMPFrame struct {
+	FrameType                             uint64        //ACK_MP frame (types TBD-00 and TBD-01; experiments use 0xbaba00..0xbaba01)
 	DestinationConnectionIDSequenceNumber uint64        // The sequence number of the Connection ID identifying the packet number space of the 1-RTT packets which are acknowledged by the ACK_MP frame.
 	DelayTime                             time.Duration // A variable-length integer encoding the acknowledgment delay in microseconds. It is decoded by multiplying the value in the field by 2 to the power of the ack_delay_exponent transport parameter sent by the sender of the ACK frame. Compared to simply expressing the delay as an integer, this encoding allows for a larger range of values within the same number of bytes, at the cost of lower resolution.
 	AckRanges                             []AckRange    // Contains additional ranges of packets that are alternately not acknowledged (Gap) and acknowledged (ACK Range);
@@ -31,6 +32,18 @@ func parseAckMPFrame(r *bytes.Reader, typ uint64, ackDelayExponent uint8, _ prot
 	ecn := typ == ackMPECNFrameType
 
 	frame := GetAckMPFrame()
+
+	if !ecn {
+		frame.FrameType = ackMPFrameType
+	} else {
+		frame.FrameType = ackMPECNFrameType
+	}
+
+	desConnIDSeqNum, err := quicvarint.Read(r)
+	if err != nil {
+		return nil, err
+	}
+	frame.DestinationConnectionIDSequenceNumber = desConnIDSeqNum
 
 	la, err := quicvarint.Read(r)
 	if err != nil {
@@ -48,8 +61,6 @@ func parseAckMPFrame(r *bytes.Reader, typ uint64, ackDelayExponent uint8, _ prot
 		delayTime = utils.InfDuration
 	}
 	frame.DelayTime = delayTime
-
-	//frame.DestinationConnectionIDSequenceNumber = destinationConnectionIDSequenceNumber
 
 	numBlocks, err := quicvarint.Read(r)
 	if err != nil {
@@ -117,6 +128,9 @@ func (f *AckMPFrame) Append(b []byte, _ protocol.VersionNumber) ([]byte, error) 
 	} else {
 		b = quicvarint.Append(b, uint64(ackMPFrameType))
 	}
+
+	b = quicvarint.Append(b, f.DestinationConnectionIDSequenceNumber)
+
 	b = quicvarint.Append(b, uint64(f.LargestAcked()))
 	b = quicvarint.Append(b, encodeAckDelay(f.DelayTime))
 
@@ -147,7 +161,7 @@ func (f *AckMPFrame) Length(_ protocol.VersionNumber) protocol.ByteCount {
 	largestAcked := f.AckRanges[0].Largest
 	numRanges := f.numEncodableAckRanges()
 
-	length := 4 + quicvarint.Len(uint64(largestAcked)) + quicvarint.Len(encodeAckDelay(f.DelayTime))
+	length := 4 + quicvarint.Len(uint64(largestAcked)) + quicvarint.Len(f.DestinationConnectionIDSequenceNumber) + quicvarint.Len(encodeAckDelay(f.DelayTime))
 
 	length += quicvarint.Len(uint64(numRanges - 1))
 	lowestInFirstRange := f.AckRanges[0].Smallest

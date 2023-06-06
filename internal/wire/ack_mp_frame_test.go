@@ -16,10 +16,12 @@ import (
 var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 	Context("parsing", func() {
 		It("parses an ACK MP frame without any ranges", func() {
-			data := encodeVarInt(100)                // largest acked
-			data = append(data, encodeVarInt(0)...)  // delay
-			data = append(data, encodeVarInt(0)...)  // num blocks
-			data = append(data, encodeVarInt(10)...) // first ack block
+
+			data := encodeVarInt(0)                   // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(100)...) // largest acked
+			data = append(data, encodeVarInt(0)...)   // delay
+			data = append(data, encodeVarInt(0)...)   // num blocks
+			data = append(data, encodeVarInt(10)...)  // first ack block
 			b := bytes.NewReader(data)
 			frame, err := parseAckMPFrame(b, ackMPFrameType, protocol.AckDelayExponent, protocol.Version1)
 			Expect(err).ToNot(HaveOccurred())
@@ -30,10 +32,11 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("parses an ACK MP frame that only acks a single packet", func() {
-			data := encodeVarInt(55)                // largest acked
-			data = append(data, encodeVarInt(0)...) // delay
-			data = append(data, encodeVarInt(0)...) // num blocks
-			data = append(data, encodeVarInt(0)...) // first ack block
+			data := encodeVarInt(0)                  // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(55)...) // largest acked
+			data = append(data, encodeVarInt(0)...)  // delay
+			data = append(data, encodeVarInt(0)...)  // num blocks
+			data = append(data, encodeVarInt(0)...)  // first ack block
 			b := bytes.NewReader(data)
 			frame, err := parseAckMPFrame(b, ackMPFrameType, protocol.AckDelayExponent, protocol.Version1)
 			Expect(err).ToNot(HaveOccurred())
@@ -44,7 +47,8 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("accepts an ACK MP frame that acks all packets from 0 to largest", func() {
-			data := encodeVarInt(20)                 // largest acked
+			data := encodeVarInt(0)                  // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(20)...) // largest acked
 			data = append(data, encodeVarInt(0)...)  // delay
 			data = append(data, encodeVarInt(0)...)  // num blocks
 			data = append(data, encodeVarInt(20)...) // first ack block
@@ -58,7 +62,8 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("rejects an ACK MP frame that has a first ACK block which is larger than LargestAcked", func() {
-			data := encodeVarInt(20)                 // largest acked
+			data := encodeVarInt(0)                  // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(20)...) // largest acked
 			data = append(data, encodeVarInt(0)...)  // delay
 			data = append(data, encodeVarInt(0)...)  // num blocks
 			data = append(data, encodeVarInt(21)...) // first ack block
@@ -67,12 +72,13 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("parses an ACK MP frame that has a single block", func() {
-			data := encodeVarInt(1000)                // largest acked
-			data = append(data, encodeVarInt(0)...)   // delay
-			data = append(data, encodeVarInt(1)...)   // num blocks
-			data = append(data, encodeVarInt(100)...) // first ack block
-			data = append(data, encodeVarInt(98)...)  // gap
-			data = append(data, encodeVarInt(50)...)  // ack block
+			data := encodeVarInt(0)                    // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(1000)...) // largest acked
+			data = append(data, encodeVarInt(0)...)    // delay
+			data = append(data, encodeVarInt(1)...)    // num blocks
+			data = append(data, encodeVarInt(100)...)  // first ack block
+			data = append(data, encodeVarInt(98)...)   // gap
+			data = append(data, encodeVarInt(50)...)   // ack block
 			b := bytes.NewReader(data)
 			frame, err := parseAckMPFrame(b, ackMPFrameType, protocol.AckDelayExponent, protocol.Version1)
 			Expect(err).ToNot(HaveOccurred())
@@ -87,14 +93,15 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("parses an ACK MP frame that has a multiple blocks", func() {
-			data := encodeVarInt(100)               // largest acked
-			data = append(data, encodeVarInt(0)...) // delay
-			data = append(data, encodeVarInt(2)...) // num blocks
-			data = append(data, encodeVarInt(0)...) // first ack block
-			data = append(data, encodeVarInt(0)...) // gap
-			data = append(data, encodeVarInt(0)...) // ack block
-			data = append(data, encodeVarInt(1)...) // gap
-			data = append(data, encodeVarInt(1)...) // ack block
+			data := encodeVarInt(0)                   // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(100)...) // largest acked
+			data = append(data, encodeVarInt(0)...)   // delay
+			data = append(data, encodeVarInt(2)...)   // num blocks
+			data = append(data, encodeVarInt(0)...)   // first ack block
+			data = append(data, encodeVarInt(0)...)   // gap
+			data = append(data, encodeVarInt(0)...)   // ack block
+			data = append(data, encodeVarInt(1)...)   // gap
+			data = append(data, encodeVarInt(1)...)   // ack block
 			b := bytes.NewReader(data)
 			frame, err := parseAckMPFrame(b, ackMPFrameType, protocol.AckDelayExponent, protocol.Version1)
 			Expect(err).ToNot(HaveOccurred())
@@ -128,7 +135,8 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("gracefully handles overflows of the delay time", func() {
-			data := encodeVarInt(100)                              // largest acked
+			data := encodeVarInt(0)                                // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(100)...)              // largest acked
 			data = append(data, encodeVarInt(math.MaxUint64/5)...) // delay
 			data = append(data, encodeVarInt(0)...)                // num blocks
 			data = append(data, encodeVarInt(0)...)                // first ack block
@@ -141,12 +149,13 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 		})
 
 		It("errors on EOF", func() {
-			data := encodeVarInt(1000)                // largest acked
-			data = append(data, encodeVarInt(0)...)   // delay
-			data = append(data, encodeVarInt(1)...)   // num blocks
-			data = append(data, encodeVarInt(100)...) // first ack block
-			data = append(data, encodeVarInt(98)...)  // gap
-			data = append(data, encodeVarInt(50)...)  // ack block
+			data := encodeVarInt(0)                    // Destination Connection ID Sequence Number
+			data = append(data, encodeVarInt(1000)...) // largest acked
+			data = append(data, encodeVarInt(0)...)    // delay
+			data = append(data, encodeVarInt(1)...)    // num blocks
+			data = append(data, encodeVarInt(100)...)  // first ack block
+			data = append(data, encodeVarInt(98)...)   // gap
+			data = append(data, encodeVarInt(50)...)   // ack block
 			_, err := parseAckMPFrame(bytes.NewReader(data), ackMPFrameType, protocol.AckDelayExponent, protocol.Version1)
 			Expect(err).NotTo(HaveOccurred())
 			for i := range data {
@@ -157,7 +166,8 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		Context("ACK_ECN", func() {
 			It("parses", func() {
-				data := encodeVarInt(100)                        // largest acked
+				data := encodeVarInt(0)                          // Destination Connection ID Sequence Number
+				data = append(data, encodeVarInt(100)...)        // largest acked
 				data = append(data, encodeVarInt(0)...)          // delay
 				data = append(data, encodeVarInt(0)...)          // num blocks
 				data = append(data, encodeVarInt(10)...)         // first ack block
@@ -174,7 +184,8 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 			})
 
 			It("errors on EOF", func() {
-				data := encodeVarInt(1000)                       // largest acked
+				data := encodeVarInt(0)                          // Destination Connection ID Sequence Number
+				data = append(data, encodeVarInt(1000)...)       // largest acked
 				data = append(data, encodeVarInt(0)...)          // delay
 				data = append(data, encodeVarInt(1)...)          // num blocks
 				data = append(data, encodeVarInt(100)...)        // first ack block
@@ -202,6 +213,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 			Expect(err).ToNot(HaveOccurred())
 			typeMP := uint(ackMPFrameType)
 			expected := []byte{uint8(typeMP>>24) | 0x80, uint8(typeMP >> 16), uint8(typeMP >> 8), uint8(typeMP)}
+			expected = append(expected, encodeVarInt(0)...)    // Destination Connection ID Sequence Number
 			expected = append(expected, encodeVarInt(1337)...) // largest acked
 			expected = append(expected, 0)                     // delay
 			expected = append(expected, encodeVarInt(0)...)    // num ranges
@@ -221,6 +233,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 			Expect(b).To(HaveLen(int(f.Length(protocol.Version1))))
 			typeMPECN := uint(ackMPECNFrameType)
 			expected := []byte{uint8(typeMPECN>>24) | 0x80, uint8(typeMPECN >> 16), uint8(typeMPECN >> 8), uint8(typeMPECN)}
+			expected = append(expected, encodeVarInt(0)...)    // Destination Connection ID Sequence Number
 			expected = append(expected, encodeVarInt(2000)...) // largest acked
 			expected = append(expected, 0)                     // delay
 			expected = append(expected, encodeVarInt(0)...)    // num ranges
@@ -233,6 +246,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame that acks a single packet", func() {
 			f := &AckMPFrame{
+				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{{Smallest: 0x2eadbeef, Largest: 0x2eadbeef}},
 				DelayTime: 18 * time.Millisecond,
 			}
@@ -252,6 +266,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame that acks many packets", func() {
 			f := &AckMPFrame{
+				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{{Smallest: 0x1337, Largest: 0x2eadbeef}},
 			}
 			b, err := f.Append(nil, protocol.Version1)
@@ -269,6 +284,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame with a a single gap", func() {
 			f := &AckMPFrame{
+				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{
 					{Smallest: 400, Largest: 1000},
 					{Smallest: 100, Largest: 200},
@@ -290,6 +306,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame with multiple ranges", func() {
 			f := &AckMPFrame{
+				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{
 					{Smallest: 10, Largest: 10},
 					{Smallest: 8, Largest: 8},
@@ -324,7 +341,7 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 			Expect(b).To(HaveLen(int(f.Length(protocol.Version1))))
 			// make sure the ACK frame is *a little bit* smaller than the MaxAckMPFrameSize
 			Expect(len(b)).To(BeNumerically(">", protocol.MaxAckFrameSize-5))
-			Expect(len(b)).To(BeNumerically("<=", protocol.MaxAckFrameSize+2))
+			Expect(len(b)).To(BeNumerically("<=", protocol.MaxAckFrameSize+3))
 			r := bytes.NewReader(b)
 			typ, err := quicvarint.Read(r)
 			Expect(err).ToNot(HaveOccurred())

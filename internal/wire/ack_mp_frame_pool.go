@@ -8,7 +8,7 @@ var ackMPFramePool = sync.Pool{New: func() any {
 
 func GetAckMPFrame() *AckMPFrame {
 	f := ackMPFramePool.Get().(*AckMPFrame)
-	//f.DestinationConnectionIDSequenceNumber = 0
+	f.DestinationConnectionIDSequenceNumber = 0
 	f.AckRanges = f.AckRanges[:0]
 	f.DelayTime = 0
 	f.ECNCE = 0
