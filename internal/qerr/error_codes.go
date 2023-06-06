@@ -61,7 +61,6 @@ func (e TransportErrorCode) String() string {
 	case FinalSizeError:
 		return "FINAL_SIZE_ERROR"
 	case FrameEncodingError:
-		MP_PROTOCOL_VIOLATION
 		return "FRAME_ENCODING_ERROR"
 	case TransportParameterError:
 		return "TRANSPORT_PARAMETER_ERROR"
