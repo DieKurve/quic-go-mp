@@ -246,7 +246,6 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame that acks a single packet", func() {
 			f := &AckMPFrame{
-				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{{Smallest: 0x2eadbeef, Largest: 0x2eadbeef}},
 				DelayTime: 18 * time.Millisecond,
 			}
@@ -266,7 +265,6 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame that acks many packets", func() {
 			f := &AckMPFrame{
-				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{{Smallest: 0x1337, Largest: 0x2eadbeef}},
 			}
 			b, err := f.Append(nil, protocol.Version1)
@@ -284,7 +282,6 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame with a a single gap", func() {
 			f := &AckMPFrame{
-				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{
 					{Smallest: 400, Largest: 1000},
 					{Smallest: 100, Largest: 200},
@@ -306,7 +303,6 @@ var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 
 		It("writes a frame with multiple ranges", func() {
 			f := &AckMPFrame{
-				FrameType: ackMPFrameType,
 				AckRanges: []AckRange{
 					{Smallest: 10, Largest: 10},
 					{Smallest: 8, Largest: 8},
