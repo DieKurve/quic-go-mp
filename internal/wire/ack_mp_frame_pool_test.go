@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+/* Based mostly on ack_mp_frame_pool_test with extension for Multipath QUIC */
 var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
 	It("gets an ACK MP frame from the pool", func() {
 		for i := 0; i < 100; i++ {

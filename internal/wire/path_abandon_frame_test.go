@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// Test mostly based on connection_close_frame_test.go with additions for PATH_ABANDON frame
 var _ = Describe("PATH_ABANDON Frame", func() {
 	Context("when parsing", func() {
 		It("accepts sample frame containing a QUIC error code", func() {
