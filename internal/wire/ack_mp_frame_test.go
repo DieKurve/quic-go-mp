@@ -13,7 +13,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ACK MP Frame (for IETF QUIC)", func() {
+/* Based mostly on ack_frame_test with extension for Multipath QUIC */
+
+var _ = Describe("ACK MP Frame (for Multipath Extension for QUIC (draft-ietf-quic-multipath-04)", func() {
 	Context("parsing", func() {
 		It("parses an ACK MP frame without any ranges", func() {
 
