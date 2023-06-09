@@ -27,6 +27,7 @@ import (
 	sequence number.
 */
 
+// A PathStatusFrame is a PATH_STATUS frame
 type PathStatusFrame struct {
 	FrameType                             uint64
 	DestinationConnectionIDSequenceNumber uint64 // The sequence number of the Destination Connection ID used by the receiver of this frame to send packets over the path the status update corresponds to.
@@ -78,5 +79,5 @@ func (f *PathStatusFrame) Append(b []byte, _ protocol.VersionNumber) ([]byte, er
 
 // Length of a written frame
 func (f *PathStatusFrame) Length(_ protocol.VersionNumber) protocol.ByteCount {
-	return 1 + 8
+	return quicvarint.Len(pathStatusFrameType) + quicvarint.Len(f.DestinationConnectionIDSequenceNumber) + quicvarint.Len(f.PathStatusSequenceNumber) + quicvarint.Len(f.PathStatus)
 }

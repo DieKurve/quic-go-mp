@@ -2,10 +2,11 @@ package wire
 
 import (
 	"bytes"
-	"github.com/quic-go/quic-go/internal/protocol"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/quic-go/quic-go/internal/protocol"
+	"github.com/quic-go/quic-go/quicvarint"
+	"math"
 )
 
 var _ = Describe("PATH_STATUS frame", func() {
@@ -46,5 +47,29 @@ var _ = Describe("PATH_STATUS frame", func() {
 			Expect(frame).To(Equal(errFrame))
 		})
 
+	})
+	Context("when writing", func() {
+		It("writes a sample frame", func() {
+			frame := PathStatusFrame{PathStatus: 1, DestinationConnectionIDSequenceNumber: 1, PathStatusSequenceNumber: 1}
+			b, err := frame.Append(nil, protocol.Version1)
+			Expect(err).ToNot(HaveOccurred())
+			testByte := quicvarint.Append(make([]byte, 0), pathStatusFrameType)
+			testByte = append(testByte, 1, 1, 1)
+			Expect(b).To(Equal(testByte))
+		})
+		It("writes a edge case frame", func() {
+			frame := PathStatusFrame{PathStatus: 1, DestinationConnectionIDSequenceNumber: math.MaxUint64 >> 2, PathStatusSequenceNumber: math.MaxUint64 >> 2}
+			b, err := frame.Append(nil, protocol.Version1)
+			Expect(err).ToNot(HaveOccurred())
+			testByte := quicvarint.Append(make([]byte, 0), pathStatusFrameType)
+			testByte = quicvarint.Append(testByte, math.MaxUint64>>2)
+			testByte = quicvarint.Append(testByte, math.MaxUint64>>2)
+			testByte = append(testByte, 1)
+			Expect(b).To(Equal(testByte))
+		})
+		It("has the correct length", func() {
+			frame := PathStatusFrame{}
+			Expect(frame.Length(protocol.Version1)).To(Equal(protocol.ByteCount(7)))
+		})
 	})
 })
