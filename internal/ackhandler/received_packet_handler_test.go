@@ -19,7 +19,7 @@ var _ = Describe("Received Packet Handler", func() {
 
 	BeforeEach(func() {
 		sentPackets = NewMockSentPacketTracker(mockCtrl)
-		handler = newReceivedPacketHandler(
+		handler = newReceivedSinglePathPacketHandler(
 			sentPackets,
 			&utils.RTTStats{},
 			utils.DefaultLogger,
