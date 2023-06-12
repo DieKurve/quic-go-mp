@@ -366,12 +366,159 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 	return acked1RTTPacket, nil
 }
 
+func (h *sentPacketHandler) ReceivedAckMP(ackMP *wire.AckMPFrame, encLevel protocol.EncryptionLevel, rcvTime time.Time) (bool, error) {
+	pnSpace := h.getPacketNumberSpace(encLevel)
+
+	largestAcked := ackMP.LargestAcked()
+	if largestAcked > pnSpace.largestSent {
+		return false, &qerr.TransportError{
+			ErrorCode:    qerr.ProtocolViolation,
+			ErrorMessage: "received ACK for an unsent packet",
+		}
+	}
+
+	pnSpace.largestAcked = utils.Max(pnSpace.largestAcked, largestAcked)
+
+	// Servers complete address validation when a protected packet is received.
+	if h.perspective == protocol.PerspectiveClient && !h.peerCompletedAddressValidation &&
+		(encLevel == protocol.EncryptionHandshake || encLevel == protocol.Encryption1RTT) {
+		h.peerCompletedAddressValidation = true
+		h.logger.Debugf("Peer doesn't await address validation any longer.")
+		// Make sure that the timer is reset, even if this ACK doesn't acknowledge any (ack-eliciting) packets.
+		h.setLossDetectionTimer()
+	}
+
+	priorInFlight := h.bytesInFlight
+	ackedPackets, err := h.detectAndRemoveAckedMPPackets(ackMP, encLevel)
+	if err != nil || len(ackedPackets) == 0 {
+		return false, err
+	}
+	// update the RTT, if the largest acked is newly acknowledged
+	if len(ackedPackets) > 0 {
+		if p := ackedPackets[len(ackedPackets)-1]; p.PacketNumber == ackMP.LargestAcked() {
+			// don't use the ack delay for Initial and Handshake packets
+			var ackDelay time.Duration
+			if encLevel == protocol.Encryption1RTT {
+				ackDelay = utils.Min(ackMP.DelayTime, h.rttStats.MaxAckDelay())
+			}
+			h.rttStats.UpdateRTT(rcvTime.Sub(p.SendTime), ackDelay, rcvTime)
+			if h.logger.Debug() {
+				h.logger.Debugf("\tupdated RTT: %s (σ: %s)", h.rttStats.SmoothedRTT(), h.rttStats.MeanDeviation())
+			}
+			h.congestion.MaybeExitSlowStart()
+		}
+	}
+	if err := h.detectLostPackets(rcvTime, encLevel); err != nil {
+		return false, err
+	}
+	var acked1RTTPacket bool
+	for _, p := range ackedPackets {
+		if p.includedInBytesInFlight && !p.declaredLost {
+			h.congestion.OnPacketAcked(p.PacketNumber, p.Length, priorInFlight, rcvTime)
+		}
+		if p.EncryptionLevel == protocol.Encryption1RTT {
+			acked1RTTPacket = true
+		}
+		h.removeFromBytesInFlight(p)
+		putPacket(p)
+	}
+	// After this point, we must not use ackedPackets any longer!
+	// We've already returned the buffers.
+	ackedPackets = nil //nolint:ineffassign // This is just to be on the safe side.
+
+	// Reset the pto_count unless the client is unsure if the server has validated the client's address.
+	if h.peerCompletedAddressValidation {
+		if h.tracer != nil && h.ptoCount != 0 {
+			h.tracer.UpdatedPTOCount(0)
+		}
+		h.ptoCount = 0
+	}
+	h.numProbesToSend = 0
+
+	if h.tracer != nil {
+		h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
+	}
+
+	pnSpace.history.DeleteOldPackets(rcvTime)
+	h.setLossDetectionTimer()
+	return acked1RTTPacket, nil
+}
+
 func (h *sentPacketHandler) GetLowestPacketNotConfirmedAcked() protocol.PacketNumber {
 	return h.lowestNotConfirmedAcked
 }
 
 // Packets are returned in ascending packet number order.
 func (h *sentPacketHandler) detectAndRemoveAckedPackets(ack *wire.AckFrame, encLevel protocol.EncryptionLevel) ([]*Packet, error) {
+	pnSpace := h.getPacketNumberSpace(encLevel)
+	h.ackedPackets = h.ackedPackets[:0]
+	ackRangeIndex := 0
+	lowestAcked := ack.LowestAcked()
+	largestAcked := ack.LargestAcked()
+	err := pnSpace.history.Iterate(func(p *Packet) (bool, error) {
+		// Ignore packets below the lowest acked
+		if p.PacketNumber < lowestAcked {
+			return true, nil
+		}
+		// Break after largest acked is reached
+		if p.PacketNumber > largestAcked {
+			return false, nil
+		}
+
+		if ack.HasMissingRanges() {
+			ackRange := ack.AckRanges[len(ack.AckRanges)-1-ackRangeIndex]
+
+			for p.PacketNumber > ackRange.Largest && ackRangeIndex < len(ack.AckRanges)-1 {
+				ackRangeIndex++
+				ackRange = ack.AckRanges[len(ack.AckRanges)-1-ackRangeIndex]
+			}
+
+			if p.PacketNumber < ackRange.Smallest { // packet not contained in ACK range
+				return true, nil
+			}
+			if p.PacketNumber > ackRange.Largest {
+				return false, fmt.Errorf("BUG: ackhandler would have acked wrong packet %d, while evaluating range %d -> %d", p.PacketNumber, ackRange.Smallest, ackRange.Largest)
+			}
+		}
+		if p.skippedPacket {
+			return false, &qerr.TransportError{
+				ErrorCode:    qerr.ProtocolViolation,
+				ErrorMessage: fmt.Sprintf("received an ACK for skipped packet number: %d (%s)", p.PacketNumber, encLevel),
+			}
+		}
+		h.ackedPackets = append(h.ackedPackets, p)
+		return true, nil
+	})
+	if h.logger.Debug() && len(h.ackedPackets) > 0 {
+		pns := make([]protocol.PacketNumber, len(h.ackedPackets))
+		for i, p := range h.ackedPackets {
+			pns[i] = p.PacketNumber
+		}
+		h.logger.Debugf("\tnewly acked packets (%d): %d", len(pns), pns)
+	}
+
+	for _, p := range h.ackedPackets {
+		if p.LargestAcked != protocol.InvalidPacketNumber && encLevel == protocol.Encryption1RTT {
+			h.lowestNotConfirmedAcked = utils.Max(h.lowestNotConfirmedAcked, p.LargestAcked+1)
+		}
+
+		for _, f := range p.Frames {
+			if f.OnAcked != nil {
+				f.OnAcked(f.Frame)
+			}
+		}
+		if err := pnSpace.history.Remove(p.PacketNumber); err != nil {
+			return nil, err
+		}
+		if h.tracer != nil {
+			h.tracer.AcknowledgedPacket(encLevel, p.PacketNumber)
+		}
+	}
+
+	return h.ackedPackets, err
+}
+
+func (h *sentPacketHandler) detectAndRemoveAckedMPPackets(ack *wire.AckMPFrame, encLevel protocol.EncryptionLevel) ([]*Packet, error) {
 	pnSpace := h.getPacketNumberSpace(encLevel)
 	h.ackedPackets = h.ackedPackets[:0]
 	ackRangeIndex := 0
