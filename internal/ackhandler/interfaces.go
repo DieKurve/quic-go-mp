@@ -16,7 +16,6 @@ type SentPacketHandler interface {
 	DropPackets(protocol.EncryptionLevel)
 	ResetForRetry() error
 	SetHandshakeConfirmed()
-
 	// The SendMode determines if and what kind of packets can be sent.
 	SendMode() SendMode
 	// TimeUntilSend is the time when the next packet should be sent.
@@ -36,6 +35,34 @@ type SentPacketHandler interface {
 	OnLossDetectionTimeout() error
 }
 
+// SentMPPacketHandler handles ACKs received for outgoing packets
+type SentMPPacketHandler interface {
+	// SentPacket may modify the packet
+	SentPacket(packet *Packet)
+	ReceivedAckMP(ackMPFrame *wire.AckMPFrame, encLevel protocol.EncryptionLevel, recvTime time.Time) (bool, error)
+	ReceivedBytes(protocol.ByteCount)
+	DropPackets(protocol.EncryptionLevel)
+	ResetForRetry() error
+	SetHandshakeConfirmed()
+	// The SendMode determines if and what kind of packets can be sent.
+	SendMode() SendMode
+	// TimeUntilSend is the time when the next packet should be sent.
+	// It is used for pacing packets.
+	TimeUntilSend() time.Time
+	// HasPacingBudget says if the pacer allows sending of a (full size) packet at this moment.
+	HasPacingBudget() bool
+	SetMaxDatagramSize(count protocol.ByteCount)
+
+	// QueueProbePacket only to be called once the handshake is complete
+	QueueProbePacket(protocol.EncryptionLevel) bool /* was a packet queued */
+
+	PeekPacketNumber(protocol.EncryptionLevel) (protocol.PacketNumber, protocol.PacketNumberLen)
+	PopPacketNumber(protocol.EncryptionLevel) protocol.PacketNumber
+
+	GetLossDetectionTimeout() time.Time
+	OnLossDetectionTimeout() error
+}
+
 type sentPacketTracker interface {
 	GetLowestPacketNotConfirmedAcked() protocol.PacketNumber
 	ReceivedPacket(protocol.EncryptionLevel)
@@ -46,7 +73,15 @@ type ReceivedPacketHandler interface {
 	IsPotentiallyDuplicate(protocol.PacketNumber, protocol.EncryptionLevel) bool
 	ReceivedPacket(pn protocol.PacketNumber, ecn protocol.ECN, encLevel protocol.EncryptionLevel, rcvTime time.Time, shouldInstigateAck bool) error
 	DropPackets(protocol.EncryptionLevel)
-
 	GetAlarmTimeout() time.Time
 	GetAckFrame(encLevel protocol.EncryptionLevel, onlyIfQueued bool) *wire.AckFrame
+}
+
+// ReceivedMPPacketHandler handles ACK_MPs needed to send for incoming packets
+type ReceivedMPPacketHandler interface {
+	IsPotentiallyDuplicate(protocol.PacketNumber, protocol.EncryptionLevel) bool
+	ReceivedPacket(pn protocol.PacketNumber, ecn protocol.ECN, encLevel protocol.EncryptionLevel, rcvTime time.Time, shouldInstigateAck bool) error
+	DropPackets(protocol.EncryptionLevel)
+	GetAlarmTimeout() time.Time
+	GetAckMPFrame(encLevel protocol.EncryptionLevel, onlyIfQueued bool) *wire.AckMPFrame
 }
