@@ -44,6 +44,7 @@ var _ = Describe("Client", func() {
 			tracingID uint64,
 			logger utils.Logger,
 			v protocol.VersionNumber,
+			multipath uint8,
 		) quicConn
 	)
 
@@ -121,6 +122,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				remoteAddrChan <- sconn.RemoteAddr().String()
 				conn := NewMockQUICConn(mockCtrl)
@@ -154,6 +156,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				hostnameChan <- tlsConf.ServerName
 				conn := NewMockQUICConn(mockCtrl)
@@ -187,6 +190,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				hostnameChan <- tlsConf.ServerName
 				conn := NewMockQUICConn(mockCtrl)
@@ -226,6 +230,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				Expect(enable0RTT).To(BeFalse())
 				conn := NewMockQUICConn(mockCtrl)
@@ -269,6 +274,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				Expect(enable0RTT).To(BeTrue())
 				conn := NewMockQUICConn(mockCtrl)
@@ -317,6 +323,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().run().Return(testErr)
@@ -360,6 +367,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				return conn
 			}
@@ -408,6 +416,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				sconn = connP
 				close(connCreated)
@@ -529,6 +538,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				versionP protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				cconn = connP
 				version = versionP
@@ -569,6 +579,7 @@ var _ = Describe("Client", func() {
 				_ uint64,
 				_ utils.Logger,
 				versionP protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				conn := NewMockQUICConn(mockCtrl)
 				conn.EXPECT().HandshakeComplete().Return(make(chan struct{}))

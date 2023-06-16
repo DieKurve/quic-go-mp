@@ -287,6 +287,7 @@ func (c *client) dial(ctx context.Context) error {
 		c.tracingID,
 		c.logger,
 		c.version,
+		0,
 	)
 	c.packetHandlers.Add(c.srcConnID, c.conn)
 
