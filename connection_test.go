@@ -122,6 +122,7 @@ var _ = Describe("Connection", func() {
 			1234,
 			utils.DefaultLogger,
 			protocol.Version1,
+			0,
 		).(*connection)
 		streamManager = NewMockStreamManager(mockCtrl)
 		conn.streamsMap = streamManager
@@ -2411,6 +2412,7 @@ var _ = Describe("Client Connection", func() {
 			1234,
 			utils.DefaultLogger,
 			protocol.Version1,
+			0,
 		).(*connection)
 		packer = NewMockPacker(mockCtrl)
 		conn.packer = packer

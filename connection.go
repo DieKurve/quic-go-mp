@@ -180,12 +180,12 @@ type connection struct {
 	// closeChan is used to notify the run loop that it should terminate
 	closeChan chan closeError
 
-	ctx                context.Context
-	ctxCancel          context.CancelFunc
-	handshakeCtx       context.Context
-	handshakeCtxCancel context.CancelFunc
+	ctx                  context.Context
+	ctxCancel            context.CancelFunc
+	undecryptablePackets []*receivedPacket // undecryptable packets, waiting for a change in encryption level
 
-	undecryptablePackets          []*receivedPacket // undecryptable packets, waiting for a change in encryption level
+	handshakeCtx                  context.Context
+	handshakeCtxCancel            context.CancelFunc
 	undecryptablePacketsToProcess []*receivedPacket
 
 	clientHelloWritten    <-chan *wire.TransportParameters
@@ -221,9 +221,18 @@ type connection struct {
 	connStateMutex sync.Mutex
 	connState      ConnectionState
 
-	logID  string
-	tracer logging.ConnectionTracer
-	logger utils.Logger
+	paths     map[protocol.ConnectionID]*path
+	closedPaths map[protocol.ConnectionID]bool
+	pathMutex sync.RWMutex
+	multipath bool
+
+	pathTimers chan *path
+	pathManager         *pathManager
+	pathManagerLaunched bool
+
+	logID      string
+	tracer     logging.ConnectionTracer
+	logger     utils.Logger
 }
 
 var (
@@ -249,6 +258,7 @@ var newConnection = func(
 	tracingID uint64,
 	logger utils.Logger,
 	v protocol.VersionNumber,
+	multiPath uint8,
 ) quicConn {
 	s := &connection{
 		conn:                  conn,
@@ -262,6 +272,7 @@ var newConnection = func(
 		tracer:                tracer,
 		logger:                logger,
 		version:               v,
+		multipath:             false,
 	}
 	if origDestConnID.Len() > 0 {
 		s.logID = origDestConnID.String()
@@ -314,6 +325,7 @@ var newConnection = func(
 		ActiveConnectionIDLimit:         protocol.MaxActiveConnectionIDs,
 		InitialSourceConnectionID:       srcConnID,
 		RetrySourceConnectionID:         retrySrcConnID,
+		EnableMultipath:                 multiPath,
 	}
 	if s.config.EnableDatagrams {
 		params.MaxDatagramFrameSize = protocol.MaxDatagramFrameSize
@@ -350,14 +362,21 @@ var newConnection = func(
 		logger,
 		s.version,
 	)
+
 	s.cryptoStreamHandler = cs
 	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
 	s.cryptoStreamManager = newCryptoStreamManager(cs, initialStream, handshakeStream, s.oneRTTStream)
+	if multiPath == 0x1 {
+		err := s.CreatePath(s.perspective)
+		if err != nil {
+			return nil
+		}
+	}
 	return s
 }
 
-// declare this as a variable, such that we can it mock it in the tests
+// declare this as a variable, so that we can it mock it in the tests
 var newClientConnection = func(
 	conn sendConn,
 	runner connRunner,
@@ -372,6 +391,7 @@ var newClientConnection = func(
 	tracingID uint64,
 	logger utils.Logger,
 	v protocol.VersionNumber,
+	multiPath uint8,
 ) quicConn {
 	s := &connection{
 		conn:                  conn,
@@ -386,6 +406,7 @@ var newClientConnection = func(
 		tracer:                tracer,
 		versionNegotiated:     hasNegotiatedVersion,
 		version:               v,
+		multipath:             false,
 	}
 	s.connIDManager = newConnIDManager(
 		destConnID,
@@ -430,6 +451,7 @@ var newClientConnection = func(
 		DisableActiveMigration:         true,
 		ActiveConnectionIDLimit:        protocol.MaxActiveConnectionIDs,
 		InitialSourceConnectionID:      srcConnID,
+		EnableMultipath:                multiPath,
 	}
 	if s.config.EnableDatagrams {
 		params.MaxDatagramFrameSize = protocol.MaxDatagramFrameSize
@@ -679,7 +701,10 @@ runLoop:
 		}
 	}
 
-	s.cryptoStreamHandler.Close()
+	err := s.cryptoStreamHandler.Close()
+	if err != nil {
+		return err
+	}
 	<-handshaking
 	s.handleCloseError(&closeErr)
 	if e := (&errCloseForRecreating{}); !errors.As(closeErr.err, &e) && s.tracer != nil {
@@ -756,7 +781,7 @@ func (s *connection) handleHandshakeComplete() {
 	s.handshakeCompleteChan = nil // prevent this case from ever being selected again
 	defer s.handshakeCtxCancel()
 	// Once the handshake completes, we have derived 1-RTT keys.
-	// There's no point in queueing undecryptable packets for later decryption any more.
+	// There's no point in queueing undecryptable packets for later decryption anymore.
 	s.undecryptablePackets = nil
 
 	s.connIDManager.SetHandshakeComplete()
@@ -774,7 +799,10 @@ func (s *connection) handleHandshakeComplete() {
 		s.closeLocal(err)
 	}
 	if ticket != nil {
-		s.oneRTTStream.Write(ticket)
+		_, err := s.oneRTTStream.Write(ticket)
+		if err != nil {
+			return
+		}
 		for s.oneRTTStream.HasData() {
 			s.queueControlFrame(s.oneRTTStream.PopCryptoFrame(protocol.MaxPostHandshakeCryptoFrameSize))
 		}
@@ -1334,6 +1362,13 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 		err = s.handleHandshakeDoneFrame()
 	case *wire.DatagramFrame:
 		err = s.handleDatagramFrame(frame)
+	case *wire.AckMPFrame:
+		err = s.handleACKMPFrame(frame, encLevel)
+		wire.PutAckMPFrame(frame)
+	case *wire.PathStatusFrame:
+		err = s.handlePathStatusFrame(frame)
+	case *wire.PathAbandonFrame:
+		s.handlePathAbandonFrame(frame)
 	default:
 		err = fmt.Errorf("unexpected frame type: %s", reflect.ValueOf(&frame).Elem().Type().Name())
 	}
@@ -1354,14 +1389,6 @@ func (s *connection) handlePacket(p *receivedPacket) {
 }
 
 func (s *connection) handleConnectionCloseFrame(frame *wire.ConnectionCloseFrame) {
-	if frame.IsApplicationError {
-		s.closeRemote(&qerr.ApplicationError{
-			Remote:       true,
-			ErrorCode:    qerr.ApplicationErrorCode(frame.ErrorCode),
-			ErrorMessage: frame.ReasonPhrase,
-		})
-		return
-	}
 	s.closeRemote(&qerr.TransportError{
 		Remote:       true,
 		ErrorCode:    qerr.TransportErrorCode(frame.ErrorCode),
@@ -1505,6 +1532,48 @@ func (s *connection) handleDatagramFrame(f *wire.DatagramFrame) error {
 	return nil
 }
 
+func (s *connection) handleACKMPFrame(frame *wire.AckMPFrame, encLevel protocol.EncryptionLevel) error {
+	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAckMP(frame, encLevel, s.lastPacketReceivedTime)
+	if err != nil {
+		return err
+	}
+	if !acked1RTTPacket {
+		return nil
+	}
+	if s.perspective == protocol.PerspectiveClient && !s.handshakeConfirmed {
+		s.handleHandshakeConfirmed()
+	}
+	return s.cryptoStreamHandler.SetLargest1RTTAcked(frame.LargestAcked())
+}
+
+func (s *connection) handlePathStatusFrame(frame *wire.PathStatusFrame) error {
+	pathStatus := frame.PathStatus
+	pathCID := frame.DestinationConnectionIDSequenceNumber
+	currentPath := s.paths[pathCID]
+	if pathStatus == 1 {
+		currentPath.status.Store(false)
+		s.logger.Infof("Path %s is now in standby", pathCID)
+	} else if pathStatus == 2 {
+		currentPath.status.Store(true)
+		s.logger.Infof("Path %s is now available", pathCID)
+	}
+	return nil
+}
+
+func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame) {
+	pathCID := frame.DestinationConnectionIDSequenceNumber
+	err := s.paths[pathCID].close()
+	if err != nil {
+		s.closeRemote(&qerr.TransportError{
+			Remote:       true,
+			ErrorCode:    qerr.TransportErrorCode(frame.ErrorCode),
+			FrameType:    frame.FrameType,
+			ErrorMessage: frame.ReasonPhrase,
+		})
+	}
+	s.logger.Infof("Path %s closed.", pathCID)
+}
+
 // closeLocal closes the connection and send a CONNECTION_CLOSE containing the error
 func (s *connection) closeLocal(e error) {
 	s.closeOnce.Do(func() {
@@ -1645,7 +1714,10 @@ func (s *connection) restoreTransportParameters(params *wire.TransportParameters
 	}
 
 	s.peerParams = params
-	s.connIDGenerator.SetMaxActiveConnIDs(params.ActiveConnectionIDLimit)
+	err := s.connIDGenerator.SetMaxActiveConnIDs(params.ActiveConnectionIDLimit)
+	if err != nil {
+		return
+	}
 	s.connFlowController.UpdateSendWindow(params.InitialMaxData)
 	s.streamsMap.UpdateLimits(params)
 	s.connStateMutex.Lock()
@@ -1719,14 +1791,24 @@ func (s *connection) applyTransportParameters() {
 	s.frameParser.SetAckDelayExponent(params.AckDelayExponent)
 	s.connFlowController.UpdateSendWindow(params.InitialMaxData)
 	s.rttStats.SetMaxAckDelay(params.MaxAckDelay)
-	s.connIDGenerator.SetMaxActiveConnIDs(params.ActiveConnectionIDLimit)
+	err := s.connIDGenerator.SetMaxActiveConnIDs(params.ActiveConnectionIDLimit)
+	if err != nil {
+		return
+	}
 	if params.StatelessResetToken != nil {
 		s.connIDManager.SetStatelessResetToken(*params.StatelessResetToken)
 	}
 	// We don't support connection migration yet, so we don't have any use for the preferred_address.
 	if params.PreferredAddress != nil {
 		// Retire the connection ID.
-		s.connIDManager.AddFromPreferredAddress(params.PreferredAddress.ConnectionID, params.PreferredAddress.StatelessResetToken)
+		err := s.connIDManager.AddFromPreferredAddress(params.PreferredAddress.ConnectionID, params.PreferredAddress.StatelessResetToken)
+		if err != nil {
+			return
+		}
+	}
+	// Enable Multipath if parameter is 0x1 else don't enable it
+	if params.EnableMultipath == 0x1 {
+		s.multipath = true
 	}
 }
 
@@ -2198,4 +2280,17 @@ func (s *connection) NextConnection() Connection {
 	<-s.HandshakeComplete()
 	s.streamsMap.UseResetMaps()
 	return s
+}
+
+func (s *connection) CreatePath(perspective protocol.Perspective) error {
+	if len(s.paths) < protocol.MaxActiveConnectionIDs {
+		newPath := &path{}
+		newPath.setup(perspective, s.tracer)
+		s.paths = append(s.paths, newPath)
+		return nil
+	}
+	return &qerr.TransportError{
+		Remote:    true,
+		ErrorCode: qerr.TransportErrorCode(0x9),
+	}
 }
