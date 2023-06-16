@@ -92,6 +92,7 @@ type baseServer struct {
 		uint64,
 		utils.Logger,
 		protocol.VersionNumber,
+		uint8,
 	) quicConn
 
 	serverError error
@@ -508,6 +509,7 @@ func (s *baseServer) handleInitialImpl(p *receivedPacket, hdr *wire.Header) erro
 			tracingID,
 			s.logger,
 			hdr.Version,
+			0,
 		)
 		conn.handlePacket(p)
 		return conn

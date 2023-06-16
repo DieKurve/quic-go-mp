@@ -285,6 +285,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					Expect(origDestConnID).To(Equal(protocol.ParseConnectionID([]byte{0xde, 0xad, 0xc0, 0xde})))
 					Expect(*retrySrcConnID).To(Equal(protocol.ParseConnectionID([]byte{0xde, 0xca, 0xfb, 0xad})))
@@ -481,6 +482,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					Expect(origDestConnID).To(Equal(hdr.DestConnectionID))
 					Expect(retrySrcConnID).To(BeNil())
@@ -539,6 +541,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					<-acceptConn
 					atomic.AddUint32(&counter, 1)
@@ -592,6 +595,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					createdConn = true
 					return conn
@@ -621,6 +625,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					conn := NewMockQUICConn(mockCtrl)
 					conn.EXPECT().handlePacket(gomock.Any())
@@ -691,6 +696,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					conn.EXPECT().handlePacket(p)
 					conn.EXPECT().run()
@@ -990,6 +996,7 @@ var _ = Describe("Server", func() {
 					_ uint64,
 					_ utils.Logger,
 					_ protocol.VersionNumber,
+					_ uint8,
 				) quicConn {
 					conn.EXPECT().handlePacket(gomock.Any())
 					conn.EXPECT().HandshakeComplete().Return(handshakeChan)
@@ -1063,6 +1070,7 @@ var _ = Describe("Server", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				conn.EXPECT().handlePacket(gomock.Any())
 				conn.EXPECT().run().Do(func() {})
@@ -1104,6 +1112,7 @@ var _ = Describe("Server", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				ready := make(chan struct{})
 				close(ready)
@@ -1166,6 +1175,7 @@ var _ = Describe("Server", func() {
 				_ uint64,
 				_ utils.Logger,
 				_ protocol.VersionNumber,
+				_ uint8,
 			) quicConn {
 				conn.EXPECT().handlePacket(p)
 				conn.EXPECT().run()
