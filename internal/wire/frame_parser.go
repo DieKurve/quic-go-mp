@@ -142,6 +142,24 @@ func (p *frameParser) parseFrame(r *bytes.Reader, typ uint64, encLevel protocol.
 			frame, err = parseConnectionCloseFrame(r, typ, v)
 		case handshakeDoneFrameType:
 			frame = &HandshakeDoneFrame{}
+
+		case ackMPFrameType, ackMPECNFrameType:
+			if encLevel != protocol.Encryption1RTT {
+				err = errors.New("only 1RTT allowed")
+			}
+			ackDelayExponent := p.ackDelayExponent
+			frame, err = parseAckMPFrame(r, typ, ackDelayExponent, v)
+
+		case pathAbandonFrameType:
+			if encLevel != protocol.Encryption1RTT {
+				err = errors.New("only 1RTT allowed")
+			}
+			frame, err = parsePathAbandonFrame(r, v)
+		case pathStatusFrameType:
+			if encLevel != protocol.Encryption1RTT {
+				err = errors.New("only 1RTT allowed")
+			}
+			frame, err = parsePathStatusFrame(r, v)
 		case 0x30, 0x31:
 			if p.supportsDatagrams {
 				frame, err = parseDatagramFrame(r, typ, v)
