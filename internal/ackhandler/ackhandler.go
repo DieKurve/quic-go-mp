@@ -19,5 +19,18 @@ func NewAckHandler(
 	logger utils.Logger,
 ) (SentPacketHandler, ReceivedPacketHandler) {
 	sph := newSentPacketHandler(initialPacketNumber, initialMaxDatagramSize, rttStats, clientAddressValidated, pers, tracer, logger)
-	return sph, newReceivedPacketHandler(sph, rttStats, logger)
+	return sph, newReceivedSinglePathPacketHandler(sph, rttStats, logger)
+}
+
+func NewAckMPHandler(initialPacketNumber protocol.PacketNumber,
+	initialMaxDatagramSize protocol.ByteCount,
+	rttStats *utils.RTTStats,
+	clientAddressValidated bool,
+	pers protocol.Perspective,
+	tracer logging.ConnectionTracer,
+	logger utils.Logger,
+) (SentPacketHandler, ReceivedMPPacketHandler) {
+	sph := newSentPacketHandler(initialPacketNumber, initialMaxDatagramSize, rttStats, clientAddressValidated, pers, tracer, logger)
+	return sph, newReceivedMultiPathPacketHandler(sph, rttStats, logger)
+
 }
