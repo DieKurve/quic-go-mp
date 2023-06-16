@@ -20,6 +20,20 @@ type MockSentPacketHandler struct {
 	recorder *MockSentPacketHandlerMockRecorder
 }
 
+func (m *MockSentPacketHandler) ReceivedAckMP(arg0 *wire.AckMPFrame, arg1 protocol.EncryptionLevel, arg2 time.Time) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReceivedAckMP", arg0, arg1, arg2)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReceivedAckMP indicates an expected call of ReceivedAckMP.
+func (mr *MockSentPacketHandlerMockRecorder) ReceivedAckMP(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReceivedAckMP", reflect.TypeOf((*MockSentPacketHandler)(nil).ReceivedAckMP), arg0, arg1, arg2)
+}
+
 // MockSentPacketHandlerMockRecorder is the mock recorder for MockSentPacketHandler.
 type MockSentPacketHandlerMockRecorder struct {
 	mock *MockSentPacketHandler
