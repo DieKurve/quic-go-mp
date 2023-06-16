@@ -165,7 +165,7 @@ func (h *connIDManager) Close() {
 	}
 }
 
-// is called when the server performs a Retry
+// ChangeInitialConnID is called when the server performs a Retry
 // and when the server changes the connection ID in the first Initial sent
 func (h *connIDManager) ChangeInitialConnID(newConnID protocol.ConnectionID) {
 	if h.activeSequenceNumber != 0 {
@@ -174,7 +174,7 @@ func (h *connIDManager) ChangeInitialConnID(newConnID protocol.ConnectionID) {
 	h.activeConnectionID = newConnID
 }
 
-// is called when the server provides a stateless reset token in the transport parameters
+// SetStatelessResetToken is called when the server provides a stateless reset token in the transport parameters
 func (h *connIDManager) SetStatelessResetToken(token protocol.StatelessResetToken) {
 	if h.activeSequenceNumber != 0 {
 		panic("expected first connection ID to have sequence number 0")
