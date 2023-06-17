@@ -54,7 +54,7 @@ func (pm *pathManager) setup(conn connection) {
 	pm.conn.paths[connIDPath] = &path{
 		pathID: pm.nxtPathID,
 		conn:   pm.conn,
-		pconn:   *conn,
+		pathConn:  sconn{},
 	}
 
 	// Setup this first path
@@ -221,15 +221,15 @@ func (pm *pathManager) createPathFromRemote(p *receivedPacket) (*path, error) {
 
 	pth := &path{
 		pathID: pathID,
-		sess:   pm.conn,
-		conn:   &conn{pconn: localPconn, currentAddr: remoteAddr},
+		conn:   pm.conn,
+		pathConn:  sconn{remoteAddr: remoteAddr},
 	}
 
 	pth.setup(pm.cubics)
 	pm.conn.paths[pathID] = pth
 
-	if utils.Debug() {
-		utils.Debugf("Created remote path %x on %s to %s", pathID, localPconn.LocalAddr().String(), remoteAddr.String())
+	if pm.logger.Debug() {
+		pm.logger.Debugf("Created remote path %x on %s to %s", pathID, localPconn.LocalAddr().String(), remoteAddr.String())
 	}
 
 	return pth, nil
