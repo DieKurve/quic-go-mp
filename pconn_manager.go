@@ -19,7 +19,7 @@ type receivedRawPacket struct {
 }
 
 type pconnManager struct {
-	// Two kinds of PacketConn: on specific unicast address and the "master"
+	// Two kinds of PacketConn: on specific unicast address and the "primary"
 	// listening on any
 	mutex    sync.Mutex
 	pconns   map[string]net.PacketConn
@@ -50,13 +50,6 @@ func (pcm *pconnManager) setup(pconnArg net.PacketConn, listenAddr net.Addr) err
 	pcm.timer = time.NewTimer(0)
 
 	if pconnArg == nil {
-		// XXX (QDC): waiting for native support of SO_REUSEADDR in go...
-		//var listenAddrStr string
-		//if listenAddr == nil {
-		//	listenAddrStr = "[::]:0"
-		//} else {
-		//	listenAddrStr = listenAddr.String()
-		//}
 		pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 		// pconn, err := reuse.ListenPacket("udp", listenAddrStr)
 		if err != nil {
@@ -102,14 +95,6 @@ listenLoop:
 				// Don't block
 			}
 			break listenLoop
-			// if pconn == pconnAny {
-
-			// }
-			// if !strings.HasSuffix(err.Error(), "use of closed network connection") {
-			// TODO
-			// c.session.Close(err)
-			// }
-			// break
 		}
 		data = data[:n]
 
@@ -167,14 +152,6 @@ runLoop:
 }
 
 func (pcm *pconnManager) createPconn(ip net.IP) (*net.UDPAddr, error) {
-	// XXX (QDC): waiting for native support of SO_REUSEADDR in go...
-	//var listenAddrStr string
-	//if ip.To4() != nil {
-	//	listenAddrStr = ip.String() + ":0"
-	//} else {
-	//	listenAddrStr = "[" + ip.String() + "]:0"
-	//}
-	// pconn, err := reuse.ListenPacket("udp", listenAddrStr)
 	pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: ip, Port: 0})
 	if err != nil {
 		return nil, err
