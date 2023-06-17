@@ -9,7 +9,6 @@ import (
 	"github.com/quic-go/quic-go/internal/congestion"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/utils"
-	"github.com/quic-go/quic-go/internal/wire"
 )
 
 type pathManager struct {
@@ -50,7 +49,7 @@ func (pm *pathManager) setup(conn connection) {
 	pm.timer = time.NewTimer(0)
 	pm.nbPaths = 0
 
-	pm.cubics := map[connIDPath]*congestion.OliaSender
+	pm.cubics = map[protocol.ConnectionID]*congestion.Cubic{}
 
 	// Set up the first path of the connection
 	pm.conn.paths[connIDPath] = &path{
