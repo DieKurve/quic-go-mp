@@ -30,6 +30,8 @@ type pathManager struct {
 	handshakeCompleted chan struct{}
 	runClosed          chan struct{}
 	timer              *time.Timer
+
+	logger utils.Logger
 }
 
 func (pm *pathManager) setup(conn connection) {
@@ -149,8 +151,8 @@ func (pm *pathManager) createPath(locAddr net.UDPAddr, remAddr net.UDPAddr) erro
 	}
 	pth.setup(pm.cubics)
 	pm.conn.paths[pm.nxtPathID] = pth
-	if utils.Debug() {
-		utils.Debugf("Created path %x on %s to %s", pm.nxtPathID, locAddr.String(), remAddr.String())
+	if pm.logger.Debug() {
+		pm.logger.Debugf("Created path %x on %s to %s", pm.nxtPathID, locAddr.String(), remAddr.String())
 	}
 	nxtPathID, err := protocol.GenerateConnectionID(10)
 	pm.nxtPathID = nxtPathID
@@ -164,8 +166,8 @@ func (pm *pathManager) createPath(locAddr net.UDPAddr, remAddr net.UDPAddr) erro
 }
 
 func (pm *pathManager) createPaths() error {
-	if utils.Debug() {
-		utils.Debugf("Path manager tries to create paths")
+	if pm.logger.Debug() {
+		pm.logger.Debugf("Path manager tries to create paths")
 	}
 
 	// XXX (QDC): don't let the server create paths for now
