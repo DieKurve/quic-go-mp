@@ -23,11 +23,11 @@ type path struct {
 	// Connection ID of the path
 	pathID protocol.ConnectionID
 	// Current connection which is the path runs on
-	conn connection
+	conn *connection
 
 	congestionSender congestion.SendAlgorithm
 
-	pathConn sendConn
+	pathConn sconn
 
 	rttStats *utils.RTTStats
 
@@ -170,7 +170,7 @@ func (p *path) idleTimeoutStartTime() time.Time {
 }
 
 func (p *path) maybeResetTimer() {
-	deadline := p.lastNetworkActivityTime.Add(p.idleTimeout())
+	//deadline := p.lastNetworkActivityTime.Add(p.idleTimeout())
 
 	if ackAlarm := p.receivedPacketHandler.GetAlarmTimeout(); !ackAlarm.IsZero() {
 		deadline = ackAlarm
