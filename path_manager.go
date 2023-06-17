@@ -147,7 +147,7 @@ func (pm *pathManager) createPath(locAddr net.UDPAddr, remAddr net.UDPAddr) erro
 	pth := &path{
 		pathID: pm.nxtPathID,
 		conn:   pm.conn,
-		pconn:   &conn{pconn: pm.pconnMgr.pconns[locAddr.String()], currentAddr: &remAddr},
+		pathConn:  sconn{remoteAddr: &remAddr},
 	}
 	pth.setup(pm.cubics)
 	pm.conn.paths[pm.nxtPathID] = pth
