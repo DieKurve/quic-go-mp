@@ -51,7 +51,6 @@ func (pcm *pconnManager) setup(pconnArg net.PacketConn, listenAddr net.Addr) err
 
 	if pconnArg == nil {
 		pconn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
-		// pconn, err := reuse.ListenPacket("udp", listenAddrStr)
 		if err != nil {
 			utils.DefaultLogger.Errorf("pconn_manager: %v", err)
 			// Format for expected consistency

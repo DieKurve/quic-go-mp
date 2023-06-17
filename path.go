@@ -1,7 +1,6 @@
 package quic
 
 import (
-	"github.com/quic-go/quic-go/logging"
 	"sync/atomic"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/qerr"
 	"github.com/quic-go/quic-go/internal/utils"
-	"github.com/quic-go/quic-go/internal/wire"
 )
 
 /*const (
@@ -55,7 +53,7 @@ type path struct {
 }
 
 // setup initializes values that are independent of the perspective
-func (p *path) setup(perspective protocol.Perspective, tracer logging.ConnectionTracer) {
+func (p *path) setup() {
 	p.rttStats = &utils.RTTStats{}
 	//var cong congestion.SendAlgorithm
 
@@ -65,7 +63,7 @@ func (p *path) setup(perspective protocol.Perspective, tracer logging.Connection
 
 	now := time.Now()
 
-	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(0, protocol.MaxPacketBufferSize, p.rttStats, true, 1, tracer, utils.DefaultLogger)
+	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(0, protocol.MaxPacketBufferSize, p.rttStats, true, 1, nil, p.conn.logger)
 
 	//p.packetNumberGenerator = p.sentPacketHandler.
 
@@ -122,7 +120,7 @@ runLoop:
 	if err != nil {
 		return
 	}
-	p.sendQueue.Close()
+	//p.sendQueue.Close()
 	p.timer.Stop()
 	p.runClosed <- struct{}{}
 }
@@ -173,15 +171,15 @@ func (p *path) maybeResetTimer() {
 	//deadline := p.lastNetworkActivityTime.Add(p.idleTimeout())
 
 	if ackAlarm := p.receivedPacketHandler.GetAlarmTimeout(); !ackAlarm.IsZero() {
-		deadline = ackAlarm
+		//deadline = ackAlarm
 	}
 	if lossTime := p.receivedPacketHandler.GetAlarmTimeout(); !lossTime.IsZero() {
-		deadline = utils.MinTime(deadline, lossTime)
+		//deadline = utils.MinTime(deadline, lossTime)
 	}
 
-	deadline = utils.MinTime(utils.MaxTime(deadline, time.Now().Add(10*time.Millisecond)), time.Now().Add(1*time.Second))
+	//deadline = utils.MinTime(utils.MaxTime(deadline, time.Now().Add(10*time.Millisecond)), time.Now().Add(1*time.Second))
 
-	p.timer.Reset(deadline)
+	//p.timer.Reset(deadline)
 }
 
 /*
@@ -197,33 +195,24 @@ func (p *path) idleTimeout() time.Duration {
 	return time.Second
 }*/
 
-func (p *path) handlePacketImpl(pkt *receivedPacket) error {
+/*func (p *path) handlePacketImpl(pkt *receivedPacket, destConnID protocol.ConnectionID) (bool, error) {
 	if !p.status.Load() {
 		// Path is closed, ignore packet
-		return nil
+		return false, nil
 	}
 
 	if !pkt.rcvTime.IsZero() {
 		p.lastNetworkActivityTime = pkt.rcvTime
 	}
-	data := pkt.data
-	hdr, _, _, _ := wire.ParsePacket(data)
 
 	// We just received a new packet on that path, so it works
 	//p.potentiallyFailed.Store(false)
 	// Calculate packet number
-	hdr.PacketNumber = protocol.InferPacketNumber(
-		hdr.PacketNumberLen,
-		p.largestRcvdPacketNumber,
-		hdr.PacketNumber,
-	)
+	pn, _, _, data, err := p.conn.unpacker.UnpackShortHeader(pkt.rcvTime, pkt.data)
 
-	packet, err := p.conn.unpacker.UnpackLongHeader(hdr.Raw, hdr, data)
-	if utils.DefaultLogger.Debug() {
+		if p.conn.logger.Debug() {
 		if err != nil {
-			utils.DefaultLogger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %x on path %x", hdr.PacketNumber, len(data)+len(hdr.Raw), hdr.ConnectionID, p.pathID)
-		} else {
-			utils.DefaultLogger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %x on path %x, %s", hdr.PacketNumber, len(data)+len(hdr.Raw), hdr.ConnectionID, p.pathID, packet.encryptionLevel)
+			p.conn.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %x on path %x", pn, len(data), destConnID, p.pathID)
 		}
 	}
 
@@ -237,24 +226,24 @@ func (p *path) handlePacketImpl(pkt *receivedPacket) error {
 		p.conn.RemoteAddr()
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	p.lastRcvdPacketNumber = hdr.PacketNumber
+	p.lastRcvdPacketNumber = pn
 	// Only do this after decrupting, so we are sure the packet is not attacker-controlled
-	p.largestRcvdPacketNumber = utils.Max(p.largestRcvdPacketNumber, hdr.PacketNumber)
+	p.largestRcvdPacketNumber = utils.Max(p.largestRcvdPacketNumber, pn)
 
-	isRetransmittable := ackhandler.HasAckElicitingFrames(packet.data[0])
-	if err = p.receivedPacketHandler.ReceivedPacket(hdr.PacketNumber, isRetransmittable); err != nil {
+	isRetransmittable := ackhandler.HasAckElicitingFrames(data[0])
+	if err = p.receivedPacketHandler.ReceivedPacket(pn, isRetransmittable); err != nil {
 		return err
 	}
 
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return p.conn.handleFrames(packe, p)
-}
+	return p.conn.handleFrames(data,destConnID, protocol.Encryption1RTT, )
+}*/
 
 func (p *path) onRTO(lastSentTime time.Time) bool {
 	// Was there any activity since last sent packet?

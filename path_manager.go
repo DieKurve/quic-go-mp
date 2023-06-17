@@ -3,6 +3,8 @@ package quic
 
 import (
 	"errors"
+	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/quic-go/quic-go/logging"
 	"net"
 	"time"
 
@@ -30,10 +32,10 @@ type pathManager struct {
 	runClosed          chan struct{}
 	timer              *time.Timer
 
-	logger utils.Logger
+	logger logging.ConnectionTracer
 }
 
-func (pm *pathManager) setup(conn connection) {
+func (pm *pathManager) setup(conn *connection) {
 
 	connIDPath, err := protocol.GenerateConnectionIDForInitial()
 	pm.nxtPathID = connIDPath
@@ -52,14 +54,14 @@ func (pm *pathManager) setup(conn connection) {
 	pm.cubics = map[protocol.ConnectionID]*congestion.Cubic{}
 
 	// Set up the first path of the connection
-	pm.conn.paths[connIDPath] = &path{
+	pm.conn.paths[1] = &path{
 		pathID: pm.nxtPathID,
 		conn:   pm.conn,
 		pathConn:  sconn{},
 	}
 
 	// Setup this first path
-	pm.conn.paths[connIDPath].setup(pm.cubics)
+	pm.conn.paths[1].setup(1,pm.logger)
 
 	// With the initial path, get the remoteAddr to create paths accordingly
 	if conn.RemoteAddr() != nil {
@@ -125,8 +127,8 @@ func (pm *pathManager) advertiseAddresses() {
 	for _, locAddr := range pm.pconnMgr.localAddrs {
 		_, sent := pm.advertisedLocAddrs[locAddr.String()]
 		if !sent {
-			version := getIPVersion(locAddr.IP)
-			pm.conn.framer.AddAddressForTransmission(uint8(version), locAddr)
+			//version := getIPVersion(locAddr.IP)
+			//pm.conn.framer.AddAddressForTransmission(uint8(version), locAddr)
 			pm.advertisedLocAddrs[locAddr.String()] = true
 		}
 	}
@@ -146,15 +148,15 @@ func (pm *pathManager) createPath(locAddr net.UDPAddr, remAddr net.UDPAddr) erro
 		}
 	}
 	// No matching path, so create it
-	pth := &path{
+	/*pth := &path{
 		pathID: pm.nxtPathID,
 		conn:   pm.conn,
 		pathConn:  sconn{remoteAddr: &remAddr},
-	}
-	pth.setup(pm.cubics)
-	pm.conn.paths[pm.nxtPathID] = pth
-	if pm.logger.Debug() {
-		pm.logger.Debugf("Created path %x on %s to %s", pm.nxtPathID, locAddr.String(), remAddr.String())
+	}*/
+	//pth.setup(pm.cubics)
+	//pm.conn.paths[pm.nxtPathID] = pth
+	if utils.DefaultLogger.Debug() {
+		utils.DefaultLogger.Debugf("Created path %x on %s to %s", pm.nxtPathID, locAddr.String(), remAddr.String())
 	}
 	nxtPathID, err := protocol.GenerateConnectionID(10)
 	pm.nxtPathID = nxtPathID
@@ -164,12 +166,12 @@ func (pm *pathManager) createPath(locAddr net.UDPAddr, remAddr net.UDPAddr) erro
 	// Send a PING frame to get latency info about the new path and informing the
 	// peer of its existence
 	// Because we hold pathsLock, it is safe to send packet now
-	return pm.conn.sendPing(pth)
+	return nil
 }
 
 func (pm *pathManager) createPaths() error {
-	if pm.logger.Debug() {
-		pm.logger.Debugf("Path manager tries to create paths")
+	if utils.DefaultLogger.Debug() {
+		utils.DefaultLogger.Debugf("Path manager tries to create paths")
 	}
 
 	// XXX (QDC): don't let the server create paths for now
@@ -202,38 +204,30 @@ func (pm *pathManager) createPaths() error {
 	return nil
 }
 
-func (pm *pathManager) createPathFromRemote(p *receivedPacket) (*path, error) {
+func (pm *pathManager) createPathFromRemote(hdr *wire.Header,p *receivedPacket) (*path, error) {
 	pm.conn.pathMutex.Lock()
 	defer pm.conn.pathMutex.Unlock()
-	localPconn := p.rcvPconn
+	localPconn := p.info
 	remoteAddr := p.remoteAddr
-	pathID := p.publicHeader.PathID
+	pathCID := hdr.DestConnectionID
 
-	// Sanity check: pathID should not exist yet
-	_, ko := pm.conn.paths[pathID]
+	// Sanity check: pathCID should not exist yet
+	_, ko := pm.conn.paths[1]
 	if ko {
 		return nil, errors.New("trying to create already existing path")
 	}
 
-	// Sanity check: odd is client initiated, even for server initiated
-	if pm.conn.perspective == protocol.PerspectiveClient && pathID%2 != 0 {
-		return nil, errors.New("server tries to create odd pathID")
-	}
-	if pm.conn.perspective == protocol.PerspectiveServer && pathID%2 == 0 {
-		return nil, errors.New("client tries to create even pathID")
-	}
-
 	pth := &path{
-		pathID: pathID,
-		conn:   pm.conn,
-		pathConn:  sconn{remoteAddr: remoteAddr},
+		pathID:   pathCID,
+		conn:     pm.conn,
+		pathConn: sconn{remoteAddr: remoteAddr},
 	}
 
-	pth.setup(pm.cubics)
-	pm.conn.paths[pathID] = pth
+	pth.setup(1, pm.logger)
+	pm.conn.paths[1] = pth
 
-	if pm.logger.Debug() {
-		pm.logger.Debugf("Created remote path %x on %s to %s", pathID, localPconn.LocalAddr().String(), remoteAddr.String())
+	if utils.DefaultLogger.Debug() {
+		utils.DefaultLogger.Debugf("Created remote path %x on %s to %s", pathCID, localPconn.addr.String(), remoteAddr.String())
 	}
 
 	return pth, nil
@@ -243,7 +237,7 @@ func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {
 	pm.conn.pathMutex.RLock()
 	defer pm.conn.pathMutex.RUnlock()
 
-	pth, ok := pm.conn.paths[pthID]
+	pth, ok := pm.conn.paths[1]
 	if !ok {
 		// XXX (QDC) Unknown path, what should we do?
 		return nil

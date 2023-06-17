@@ -221,18 +221,18 @@ type connection struct {
 	connStateMutex sync.Mutex
 	connState      ConnectionState
 
-	paths     map[protocol.ConnectionID]*path
-	closedPaths map[protocol.ConnectionID]bool
+	paths            map[uint64]*path
+	closedPaths      map[uint64]bool
 	pathMutex        sync.RWMutex
 	multipathEnabled bool
 
-	pathTimers chan *path
+	pathTimers          chan *path
 	pathManager         *pathManager
 	pathManagerLaunched bool
 
-	logID      string
-	tracer     logging.ConnectionTracer
-	logger     utils.Logger
+	logID  string
+	tracer logging.ConnectionTracer
+	logger utils.Logger
 }
 
 var (
@@ -297,6 +297,9 @@ var newConnection = func(
 		s.config.ConnectionIDGenerator,
 	)
 	s.preSetup()
+	if s.multipathEnabled {
+		s.multiPathSetup()
+	}
 	s.ctx, s.ctxCancel = context.WithCancel(context.WithValue(context.Background(), ConnectionTracingKey, tracingID))
 	s.sentPacketHandler, s.receivedPacketHandler = ackhandler.NewAckHandler(
 		0,
@@ -368,10 +371,10 @@ var newConnection = func(
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
 	s.cryptoStreamManager = newCryptoStreamManager(cs, initialStream, handshakeStream, s.oneRTTStream)
 	if multiPath == 0x1 {
-		err := s.CreatePath(s.perspective)
-		if err != nil {
-			return nil
-		}
+		/*err := s.CreatePath(s.perspective)
+		  if err != nil {
+		  	return nil
+		  }*/
 	}
 	return s
 }
@@ -538,6 +541,17 @@ func (s *connection) preSetup() {
 	s.windowUpdateQueue = newWindowUpdateQueue(s.streamsMap, s.connFlowController, s.framer.QueueControlFrame)
 	s.datagramQueue = newDatagramQueue(s.scheduleSending, s.logger)
 	s.connState.Version = s.version
+}
+
+func (s *connection) multiPathSetup() {
+	pathCID, _ := protocol.GenerateConnectionID(20)
+	s.paths[1] = &path{
+		pathID:   pathCID,
+		conn:     s,
+		pathConn: sconn{remoteAddr: s.RemoteAddr()},
+	}
+	s.paths[1].setup()
+
 }
 
 // run the connection main loop
@@ -2282,15 +2296,24 @@ func (s *connection) NextConnection() Connection {
 	return s
 }
 
-func (s *connection) CreatePath(perspective protocol.Perspective) error {
+/*func (s *connection) CreatePath(perspective protocol.Perspective) error {
 	if len(s.paths) < protocol.MaxActiveConnectionIDs {
 		newPath := &path{}
 		newPath.setup(perspective, s.tracer)
-		s.paths = append(s.paths, newPath)
+		//pCID, err := protocol.GenerateConnectionID(20)
+		if err != nil{
+			return err
+		}
+		s.paths[1] = newPath
 		return nil
 	}
 	return &qerr.TransportError{
 		Remote:    true,
 		ErrorCode: qerr.TransportErrorCode(0x9),
 	}
+}*/
+
+func (s *connection) schedulePathsFrame() {
+	//s.lastPathsFrameSent = time.Now()
+	//s.framer.AddPathsFrameForTransmission(s)
 }
