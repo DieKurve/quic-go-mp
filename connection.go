@@ -223,8 +223,8 @@ type connection struct {
 
 	paths     map[protocol.ConnectionID]*path
 	closedPaths map[protocol.ConnectionID]bool
-	pathMutex sync.RWMutex
-	multipath bool
+	pathMutex        sync.RWMutex
+	multipathEnabled bool
 
 	pathTimers chan *path
 	pathManager         *pathManager
@@ -272,7 +272,7 @@ var newConnection = func(
 		tracer:                tracer,
 		logger:                logger,
 		version:               v,
-		multipath:             false,
+		multipathEnabled:      false,
 	}
 	if origDestConnID.Len() > 0 {
 		s.logID = origDestConnID.String()
@@ -406,7 +406,7 @@ var newClientConnection = func(
 		tracer:                tracer,
 		versionNegotiated:     hasNegotiatedVersion,
 		version:               v,
-		multipath:             false,
+		multipathEnabled:      false,
 	}
 	s.connIDManager = newConnIDManager(
 		destConnID,
@@ -1808,7 +1808,7 @@ func (s *connection) applyTransportParameters() {
 	}
 	// Enable Multipath if parameter is 0x1 else don't enable it
 	if params.EnableMultipath == 0x1 {
-		s.multipath = true
+		s.multipathEnabled = true
 	}
 }
 

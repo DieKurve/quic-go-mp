@@ -86,7 +86,7 @@ func (pm *pathManager) run() {
 	case <-pm.runClosed:
 		return
 	case <-pm.handshakeCompleted:
-		if pm.conn.multipath {
+		if pm.conn.multipathEnabled {
 			err := pm.createPaths()
 			if err != nil {
 				pm.closePaths()
@@ -101,8 +101,11 @@ runLoop:
 		case <-pm.runClosed:
 			break runLoop
 		case <-pm.pconnMgr.changePaths:
-			if pm.conn.multipath {
-				pm.createPaths()
+			if pm.conn.multipathEnabled {
+				err := pm.createPaths()
+				if err != nil {
+					return
+				}
 			}
 		}
 	}
