@@ -104,6 +104,8 @@ type baseServer struct {
 	connQueueLen int32 // to be used as an atomic
 
 	logger utils.Logger
+
+	enableMultipath uint8
 }
 
 var (
@@ -122,20 +124,20 @@ func (s *earlyServer) Accept(ctx context.Context) (EarlyConnection, error) {
 // ListenAddr creates a QUIC server listening on a given address.
 // The tls.Config must not be nil and must contain a certificate configuration.
 // The quic.Config may be nil, in that case the default values will be used.
-func ListenAddr(addr string, tlsConf *tls.Config, config *Config) (Listener, error) {
-	return listenAddr(addr, tlsConf, config, false)
+func ListenAddr(addr string, tlsConf *tls.Config, config *Config, enableMultipath uint8) (Listener, error) {
+	return listenAddr(addr, tlsConf, config, false, enableMultipath)
 }
 
 // ListenAddrEarly works like ListenAddr, but it returns connections before the handshake completes.
 func ListenAddrEarly(addr string, tlsConf *tls.Config, config *Config) (EarlyListener, error) {
-	s, err := listenAddr(addr, tlsConf, config, true)
+	s, err := listenAddr(addr, tlsConf, config, true, 0)
 	if err != nil {
 		return nil, err
 	}
 	return &earlyServer{s}, nil
 }
 
-func listenAddr(addr string, tlsConf *tls.Config, config *Config, acceptEarly bool) (*baseServer, error) {
+func listenAddr(addr string, tlsConf *tls.Config, config *Config, acceptEarly bool, enableMultipath uint8) (*baseServer, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
@@ -144,7 +146,7 @@ func listenAddr(addr string, tlsConf *tls.Config, config *Config, acceptEarly bo
 	if err != nil {
 		return nil, err
 	}
-	serv, err := listen(conn, tlsConf, config, acceptEarly)
+	serv, err := listen(conn, tlsConf, config, acceptEarly, enableMultipath)
 	if err != nil {
 		return nil, err
 	}
@@ -162,20 +164,20 @@ func listenAddr(addr string, tlsConf *tls.Config, config *Config, acceptEarly bo
 // The tls.Config must not be nil and must contain a certificate configuration.
 // Furthermore, it must define an application control (using NextProtos).
 // The quic.Config may be nil, in that case the default values will be used.
-func Listen(conn net.PacketConn, tlsConf *tls.Config, config *Config) (Listener, error) {
-	return listen(conn, tlsConf, config, false)
+func Listen(conn net.PacketConn, tlsConf *tls.Config, config *Config, enableMultipath uint8) (Listener, error) {
+	return listen(conn, tlsConf, config, false, enableMultipath)
 }
 
 // ListenEarly works like Listen, but it returns connections before the handshake completes.
 func ListenEarly(conn net.PacketConn, tlsConf *tls.Config, config *Config) (EarlyListener, error) {
-	s, err := listen(conn, tlsConf, config, true)
+	s, err := listen(conn, tlsConf, config, true, 0)
 	if err != nil {
 		return nil, err
 	}
 	return &earlyServer{s}, nil
 }
 
-func listen(conn net.PacketConn, tlsConf *tls.Config, config *Config, acceptEarly bool) (*baseServer, error) {
+func listen(conn net.PacketConn, tlsConf *tls.Config, config *Config, acceptEarly bool, enableMultipath uint8) (*baseServer, error) {
 	if tlsConf == nil {
 		return nil, errors.New("quic: tls.Config not set")
 	}
@@ -214,6 +216,7 @@ func listen(conn net.PacketConn, tlsConf *tls.Config, config *Config, acceptEarl
 		newConn:          newConnection,
 		logger:           utils.DefaultLogger.WithPrefix("server"),
 		acceptEarlyConns: acceptEarly,
+		enableMultipath: enableMultipath,
 	}
 	go s.run()
 	connHandler.SetServer(s)
@@ -509,7 +512,7 @@ func (s *baseServer) handleInitialImpl(p *receivedPacket, hdr *wire.Header) erro
 			tracingID,
 			s.logger,
 			hdr.Version,
-			0,
+			s.enableMultipath,
 		)
 		conn.handlePacket(p)
 		return conn
