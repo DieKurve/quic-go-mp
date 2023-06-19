@@ -39,6 +39,8 @@ type client struct {
 	tracer    logging.ConnectionTracer
 	tracingID uint64
 	logger    utils.Logger
+
+	enableMultiPath uint8
 }
 
 // make it possible to mock connection ID for initial generation in the tests
@@ -51,8 +53,9 @@ func DialAddr(
 	addr string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (Connection, error) {
-	return DialAddrContext(context.Background(), addr, tlsConf, config)
+	return DialAddrContext(context.Background(), addr, tlsConf, config, enableMultipath)
 }
 
 // DialAddrEarly establishes a new 0-RTT QUIC connection to a server.
@@ -62,8 +65,9 @@ func DialAddrEarly(
 	addr string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (EarlyConnection, error) {
-	return DialAddrEarlyContext(context.Background(), addr, tlsConf, config)
+	return DialAddrEarlyContext(context.Background(), addr, tlsConf, config, enableMultipath)
 }
 
 // DialAddrEarlyContext establishes a new 0-RTT QUIC connection to a server using provided context.
@@ -73,8 +77,9 @@ func DialAddrEarlyContext(
 	addr string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (EarlyConnection, error) {
-	conn, err := dialAddrContext(ctx, addr, tlsConf, config, true)
+	conn, err := dialAddrContext(ctx, addr, tlsConf, config, true, enableMultipath)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +94,9 @@ func DialAddrContext(
 	addr string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (Connection, error) {
-	return dialAddrContext(ctx, addr, tlsConf, config, false)
+	return dialAddrContext(ctx, addr, tlsConf, config, false, enableMultipath)
 }
 
 func dialAddrContext(
@@ -99,6 +105,7 @@ func dialAddrContext(
 	tlsConf *tls.Config,
 	config *Config,
 	use0RTT bool,
+	enableMultipath uint8,
 ) (quicConn, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -108,7 +115,7 @@ func dialAddrContext(
 	if err != nil {
 		return nil, err
 	}
-	return dialContext(ctx, udpConn, udpAddr, addr, tlsConf, config, use0RTT, true)
+	return dialContext(ctx, udpConn, udpAddr, addr, tlsConf, config, use0RTT, true, enableMultipath)
 }
 
 // Dial establishes a new QUIC connection to a server using a net.PacketConn. If
@@ -125,8 +132,9 @@ func Dial(
 	host string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (Connection, error) {
-	return dialContext(context.Background(), pconn, remoteAddr, host, tlsConf, config, false, false)
+	return dialContext(context.Background(), pconn, remoteAddr, host, tlsConf, config, false, false, enableMultipath)
 }
 
 // DialEarly establishes a new 0-RTT QUIC connection to a server using a net.PacketConn.
@@ -140,8 +148,9 @@ func DialEarly(
 	host string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (EarlyConnection, error) {
-	return DialEarlyContext(context.Background(), pconn, remoteAddr, host, tlsConf, config)
+	return DialEarlyContext(context.Background(), pconn, remoteAddr, host, tlsConf, config, enableMultipath)
 }
 
 // DialEarlyContext establishes a new 0-RTT QUIC connection to a server using a net.PacketConn using the provided context.
@@ -153,8 +162,9 @@ func DialEarlyContext(
 	host string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (EarlyConnection, error) {
-	return dialContext(ctx, pconn, remoteAddr, host, tlsConf, config, true, false)
+	return dialContext(ctx, pconn, remoteAddr, host, tlsConf, config, true, false, enableMultipath)
 }
 
 // DialContext establishes a new QUIC connection to a server using a net.PacketConn using the provided context.
@@ -166,8 +176,9 @@ func DialContext(
 	host string,
 	tlsConf *tls.Config,
 	config *Config,
+	enableMultipath uint8,
 ) (Connection, error) {
-	return dialContext(ctx, pconn, remoteAddr, host, tlsConf, config, false, false)
+	return dialContext(ctx, pconn, remoteAddr, host, tlsConf, config, false, false, enableMultipath)
 }
 
 func dialContext(
@@ -179,6 +190,7 @@ func dialContext(
 	config *Config,
 	use0RTT bool,
 	createdPacketConn bool,
+	enableMultipath uint8,
 ) (quicConn, error) {
 	if tlsConf == nil {
 		return nil, errors.New("quic: tls.Config not set")
@@ -191,7 +203,7 @@ func dialContext(
 	if err != nil {
 		return nil, err
 	}
-	c, err := newClient(pconn, remoteAddr, config, tlsConf, host, use0RTT, createdPacketConn)
+	c, err := newClient(pconn, remoteAddr, config, tlsConf, host, use0RTT, createdPacketConn, enableMultipath)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +234,7 @@ func newClient(
 	host string,
 	use0RTT bool,
 	createdPacketConn bool,
+	enableMultipath uint8,
 ) (*client, error) {
 	if tlsConf == nil {
 		tlsConf = &tls.Config{}
@@ -266,6 +279,7 @@ func newClient(
 		version:           config.Versions[0],
 		handshakeChan:     make(chan struct{}),
 		logger:            utils.DefaultLogger.WithPrefix("client"),
+		enableMultiPath:   enableMultipath,
 	}
 	return c, nil
 }
@@ -287,7 +301,7 @@ func (c *client) dial(ctx context.Context) error {
 		c.tracingID,
 		c.logger,
 		c.version,
-		0,
+		c.enableMultiPath,
 	)
 	c.packetHandlers.Add(c.srcConnID, c.conn)
 
