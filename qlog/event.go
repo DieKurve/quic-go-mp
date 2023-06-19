@@ -396,6 +396,8 @@ type eventTransportParameters struct {
 	PreferredAddress *preferredAddress
 
 	MaxDatagramFrameSize protocol.ByteCount
+
+	EnableMultipath uint8
 }
 
 func (e eventTransportParameters) Category() category { return categoryTransport }
