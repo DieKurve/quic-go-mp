@@ -929,10 +929,10 @@ var _ = Describe("Server", func() {
 	Context("ConfigureTLSConfig", func() {
 		It("advertises v1 by default", func() {
 			conf := ConfigureTLSConfig(testdata.GetTLSConfig())
-			ln, err := quic.ListenAddr("localhost:0", conf, &quic.Config{Versions: []quic.VersionNumber{quic.Version1}})
+			ln, err := quic.ListenAddr("localhost:0", conf, &quic.Config{Versions: []quic.VersionNumber{quic.Version1}},0)
 			Expect(err).ToNot(HaveOccurred())
 			defer ln.Close()
-			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
+			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil,0)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
 			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
@@ -940,10 +940,10 @@ var _ = Describe("Server", func() {
 
 		It("advertises h3-29 for draft-29", func() {
 			conf := ConfigureTLSConfig(testdata.GetTLSConfig())
-			ln, err := quic.ListenAddr("localhost:0", conf, &quic.Config{Versions: []quic.VersionNumber{quic.VersionDraft29}})
+			ln, err := quic.ListenAddr("localhost:0", conf, &quic.Config{Versions: []quic.VersionNumber{quic.VersionDraft29}},0)
 			Expect(err).ToNot(HaveOccurred())
 			defer ln.Close()
-			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3Draft29}}, nil)
+			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3Draft29}}, nil,0)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
 			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3Draft29))
@@ -968,10 +968,10 @@ var _ = Describe("Server", func() {
 				},
 			}
 
-			ln, err := quic.ListenAddr("localhost:0", ConfigureTLSConfig(tlsConf), &quic.Config{Versions: []quic.VersionNumber{quic.Version1}})
+			ln, err := quic.ListenAddr("localhost:0", ConfigureTLSConfig(tlsConf), &quic.Config{Versions: []quic.VersionNumber{quic.Version1}},0)
 			Expect(err).ToNot(HaveOccurred())
 			defer ln.Close()
-			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
+			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil,0)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
 			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
@@ -981,10 +981,10 @@ var _ = Describe("Server", func() {
 			tlsConf := testdata.GetTLSConfig()
 			tlsConf.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) { return nil, nil }
 
-			ln, err := quic.ListenAddr("localhost:0", ConfigureTLSConfig(tlsConf), &quic.Config{Versions: []quic.VersionNumber{quic.Version1}})
+			ln, err := quic.ListenAddr("localhost:0", ConfigureTLSConfig(tlsConf), &quic.Config{Versions: []quic.VersionNumber{quic.Version1}},0)
 			Expect(err).ToNot(HaveOccurred())
 			defer ln.Close()
-			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
+			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil,0)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
 			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
@@ -999,10 +999,10 @@ var _ = Describe("Server", func() {
 				},
 			}
 
-			ln, err := quic.ListenAddr("localhost:0", ConfigureTLSConfig(tlsConf), &quic.Config{Versions: []quic.VersionNumber{quic.Version1}})
+			ln, err := quic.ListenAddr("localhost:0", ConfigureTLSConfig(tlsConf), &quic.Config{Versions: []quic.VersionNumber{quic.Version1}},0)
 			Expect(err).ToNot(HaveOccurred())
 			defer ln.Close()
-			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
+			c, err := quic.DialAddr(ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil,0)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
 			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))

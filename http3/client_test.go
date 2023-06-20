@@ -64,7 +64,7 @@ var _ = Describe("Client", func() {
 		client, err := newClient("localhost:1337", nil, &roundTripperOpts{}, nil, nil)
 		Expect(err).ToNot(HaveOccurred())
 		var dialAddrCalled bool
-		dialAddr = func(_ context.Context, _ string, tlsConf *tls.Config, quicConf *quic.Config) (quic.EarlyConnection, error) {
+		dialAddr = func(_ context.Context, _ string, tlsConf *tls.Config, quicConf *quic.Config, enableMultipath uint8) (quic.EarlyConnection, error) {
 			Expect(quicConf).To(Equal(defaultQuicConfig))
 			Expect(tlsConf.NextProtos).To(Equal([]string{NextProtoH3}))
 			Expect(quicConf.Versions).To(Equal([]protocol.VersionNumber{protocol.Version1}))
@@ -79,7 +79,7 @@ var _ = Describe("Client", func() {
 		client, err := newClient("quic.clemente.io", nil, &roundTripperOpts{}, nil, nil)
 		Expect(err).ToNot(HaveOccurred())
 		var dialAddrCalled bool
-		dialAddr = func(_ context.Context, hostname string, _ *tls.Config, _ *quic.Config) (quic.EarlyConnection, error) {
+		dialAddr = func(_ context.Context, hostname string, _ *tls.Config, _ *quic.Config, enableMultipath uint8) (quic.EarlyConnection, error) {
 			Expect(hostname).To(Equal("quic.clemente.io:443"))
 			dialAddrCalled = true
 			return nil, errors.New("test done")
@@ -99,7 +99,7 @@ var _ = Describe("Client", func() {
 		client, err := newClient("localhost:1337", tlsConf, &roundTripperOpts{}, quicConf, nil)
 		Expect(err).ToNot(HaveOccurred())
 		var dialAddrCalled bool
-		dialAddr = func(_ context.Context, host string, tlsConfP *tls.Config, quicConfP *quic.Config) (quic.EarlyConnection, error) {
+		dialAddr = func(_ context.Context, host string, tlsConfP *tls.Config, quicConfP *quic.Config, enableMultipath uint8) (quic.EarlyConnection, error) {
 			Expect(host).To(Equal("localhost:1337"))
 			Expect(tlsConfP.ServerName).To(Equal(tlsConf.ServerName))
 			Expect(tlsConfP.NextProtos).To(Equal([]string{NextProtoH3}))
@@ -139,7 +139,7 @@ var _ = Describe("Client", func() {
 		testErr := errors.New("handshake error")
 		client, err := newClient("localhost:1337", nil, &roundTripperOpts{EnableDatagram: true}, nil, nil)
 		Expect(err).ToNot(HaveOccurred())
-		dialAddr = func(_ context.Context, _ string, _ *tls.Config, quicConf *quic.Config) (quic.EarlyConnection, error) {
+		dialAddr = func(_ context.Context, _ string, _ *tls.Config, quicConf *quic.Config, _ uint8) (quic.EarlyConnection, error) {
 			Expect(quicConf.EnableDatagrams).To(BeTrue())
 			return nil, testErr
 		}
@@ -151,7 +151,7 @@ var _ = Describe("Client", func() {
 		testErr := errors.New("handshake error")
 		client, err := newClient("localhost:1337", nil, &roundTripperOpts{}, nil, nil)
 		Expect(err).ToNot(HaveOccurred())
-		dialAddr = func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+		dialAddr = func(context.Context, string, *tls.Config, *quic.Config, uint8) (quic.EarlyConnection, error) {
 			return nil, testErr
 		}
 		_, err = client.RoundTripOpt(req, RoundTripOpt{})
@@ -176,7 +176,7 @@ var _ = Describe("Client", func() {
 			testErr := errors.New("handshake error")
 			req, err := http.NewRequest("masque", "masque://quic.clemente.io:1337/foobar.html", nil)
 			Expect(err).ToNot(HaveOccurred())
-			dialAddr = func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+			dialAddr = func(context.Context, string, *tls.Config, *quic.Config, uint8) (quic.EarlyConnection, error) {
 				return nil, testErr
 			}
 			_, err = cl.RoundTripOpt(req, RoundTripOpt{})
@@ -205,7 +205,7 @@ var _ = Describe("Client", func() {
 			conn.EXPECT().HandshakeComplete().Return(handshakeChan)
 			conn.EXPECT().OpenStreamSync(gomock.Any()).Return(nil, errors.New("done"))
 			conn.EXPECT().AcceptUniStream(gomock.Any()).Return(nil, errors.New("done")).AnyTimes()
-			dialAddr = func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+			dialAddr = func(context.Context, string, *tls.Config, *quic.Config, uint8) (quic.EarlyConnection, error) {
 				return conn, nil
 			}
 			var err error
@@ -330,7 +330,7 @@ var _ = Describe("Client", func() {
 			conn.EXPECT().OpenUniStream().Return(controlStr, nil)
 			conn.EXPECT().HandshakeComplete().Return(handshakeChan)
 			conn.EXPECT().OpenStreamSync(gomock.Any()).Return(nil, errors.New("done"))
-			dialAddr = func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+			dialAddr = func(context.Context, string, *tls.Config, *quic.Config, uint8) (quic.EarlyConnection, error) {
 				return conn, nil
 			}
 			var err error
@@ -436,7 +436,7 @@ var _ = Describe("Client", func() {
 			conn.EXPECT().OpenUniStream().Return(controlStr, nil)
 			conn.EXPECT().HandshakeComplete().Return(handshakeChan)
 			conn.EXPECT().OpenStreamSync(gomock.Any()).Return(nil, errors.New("done"))
-			dialAddr = func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+			dialAddr = func(context.Context, string, *tls.Config, *quic.Config, uint8) (quic.EarlyConnection, error) {
 				return conn, nil
 			}
 			var err error
@@ -679,7 +679,7 @@ var _ = Describe("Client", func() {
 				<-testDone
 				return nil, errors.New("test done")
 			})
-			dialAddr = func(context.Context, string, *tls.Config, *quic.Config) (quic.EarlyConnection, error) {
+			dialAddr = func(context.Context, string, *tls.Config, *quic.Config, uint8) (quic.EarlyConnection, error) {
 				return conn, nil
 			}
 			var err error
