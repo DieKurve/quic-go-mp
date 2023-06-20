@@ -61,7 +61,7 @@ func (pm *pathManager) setup(conn *connection) {
 	}
 
 	// Setup this first path
-	pm.conn.paths[1].setup(1,pm.logger)
+	pm.conn.paths[1].setup()
 
 	// With the initial path, get the remoteAddr to create paths accordingly
 	if conn.RemoteAddr() != nil {
@@ -223,7 +223,7 @@ func (pm *pathManager) createPathFromRemote(hdr *wire.Header,p *receivedPacket) 
 		pathConn: sconn{remoteAddr: remoteAddr},
 	}
 
-	pth.setup(1, pm.logger)
+	pth.setup()
 	pm.conn.paths[1] = pth
 
 	if utils.DefaultLogger.Debug() {
