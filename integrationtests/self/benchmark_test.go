@@ -12,7 +12,7 @@ import (
 func BenchmarkHandshake(b *testing.B) {
 	b.ReportAllocs()
 
-	ln, err := quic.ListenAddr("localhost:0", tlsConfig, nil)
+	ln, err := quic.ListenAddr("localhost:0", tlsConfig, nil,0)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func BenchmarkHandshake(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c, err := quic.Dial(conn, ln.Addr(), "localhost", tlsClientConfig, nil)
+		c, err := quic.Dial(conn, ln.Addr(), "localhost", tlsClientConfig, nil,0)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -48,7 +48,7 @@ func BenchmarkHandshake(b *testing.B) {
 func BenchmarkStreamChurn(b *testing.B) {
 	b.ReportAllocs()
 
-	ln, err := quic.ListenAddr("localhost:0", tlsConfig, &quic.Config{MaxIncomingStreams: 1e10})
+	ln, err := quic.ListenAddr("localhost:0", tlsConfig, &quic.Config{MaxIncomingStreams: 1e10},0)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func BenchmarkStreamChurn(b *testing.B) {
 		}
 	}()
 
-	c, err := quic.DialAddr(fmt.Sprintf("localhost:%d", ln.Addr().(*net.UDPAddr).Port), tlsClientConfig, nil)
+	c, err := quic.DialAddr(fmt.Sprintf("localhost:%d", ln.Addr().(*net.UDPAddr).Port), tlsClientConfig, nil,0)
 	if err != nil {
 		b.Fatal(err)
 	}

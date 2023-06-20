@@ -44,6 +44,7 @@ var _ = Describe("Datagram test", func() {
 						EnableDatagrams: enableDatagram,
 						Versions:        []protocol.VersionNumber{version},
 					}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -121,6 +122,7 @@ var _ = Describe("Datagram test", func() {
 						EnableDatagrams: true,
 						Versions:        []protocol.VersionNumber{version},
 					}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(conn.ConnectionState().SupportsDatagrams).To(BeTrue())
@@ -160,6 +162,7 @@ var _ = Describe("Datagram test", func() {
 						EnableDatagrams: true,
 						Versions:        []protocol.VersionNumber{version},
 					}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(conn.ConnectionState().SupportsDatagrams).To(BeFalse())
@@ -181,6 +184,7 @@ var _ = Describe("Datagram test", func() {
 						EnableDatagrams: true,
 						Versions:        []protocol.VersionNumber{version},
 					}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(conn.ConnectionState().SupportsDatagrams).To(BeFalse())

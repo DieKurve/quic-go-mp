@@ -32,6 +32,7 @@ var _ = Describe("Drop Tests", func() {
 			"localhost:0",
 			getTLSConfig(),
 			getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+			0,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		serverPort := ln.Addr().(*net.UDPAddr).Port
@@ -105,6 +106,7 @@ var _ = Describe("Drop Tests", func() {
 							fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 							getTLSClientConfig(),
 							getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+							0,
 						)
 						Expect(err).ToNot(HaveOccurred())
 						defer conn.CloseWithError(0, "")

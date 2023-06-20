@@ -98,7 +98,7 @@ var _ = Describe("Handshake tests", func() {
 	runServer := func(tlsConf *tls.Config) {
 		var err error
 		// start the server
-		server, err = quic.ListenAddr("localhost:0", tlsConf, serverConfig)
+		server, err = quic.ListenAddr("localhost:0", tlsConf, serverConfig,0)
 		Expect(err).ToNot(HaveOccurred())
 
 		go func() {
@@ -139,6 +139,7 @@ var _ = Describe("Handshake tests", func() {
 					fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 					getTLSClientConfig(),
 					getQuicConfig(&quic.Config{Tracer: newTracer(func() logging.ConnectionTracer { return clientTracer })}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(conn.(versioner).GetVersion()).To(Equal(expectedVersion))
@@ -170,6 +171,7 @@ var _ = Describe("Handshake tests", func() {
 						Versions: clientVersions,
 						Tracer:   newTracer(func() logging.ConnectionTracer { return clientTracer }),
 					}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(conn.(versioner).GetVersion()).To(Equal(protocol.SupportedVersions[0]))
@@ -199,7 +201,7 @@ var _ = Describe("Handshake tests", func() {
 				defer reset()
 
 				tlsConf := getTLSConfig()
-				ln, err := quic.ListenAddr("localhost:0", tlsConf, serverConfig)
+				ln, err := quic.ListenAddr("localhost:0", tlsConf, serverConfig,0)
 				Expect(err).ToNot(HaveOccurred())
 				defer ln.Close()
 
@@ -218,6 +220,7 @@ var _ = Describe("Handshake tests", func() {
 					fmt.Sprintf("localhost:%d", ln.Addr().(*net.UDPAddr).Port),
 					getTLSClientConfig(),
 					nil,
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				str, err := conn.AcceptStream(context.Background())
@@ -249,6 +252,7 @@ var _ = Describe("Handshake tests", func() {
 						fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 						getTLSClientConfig(),
 						clientConfig,
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 				})
@@ -259,6 +263,7 @@ var _ = Describe("Handshake tests", func() {
 						fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 						getTLSClientConfig(),
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 				})
@@ -273,6 +278,7 @@ var _ = Describe("Handshake tests", func() {
 						"foo.bar",
 						getTLSClientConfig(),
 						clientConfig,
+						0,
 					)
 					Expect(err).To(HaveOccurred())
 					var transportErr *quic.TransportError
@@ -290,6 +296,7 @@ var _ = Describe("Handshake tests", func() {
 						fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 						getTLSClientConfig(),
 						clientConfig,
+						0,
 					)
 					// Usually, the error will occur after the client already finished the handshake.
 					// However, there's a race condition here. The server's CONNECTION_CLOSE might be
@@ -318,6 +325,7 @@ var _ = Describe("Handshake tests", func() {
 						fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 						tlsConf,
 						clientConfig,
+						0,
 					)
 					Expect(err).To(HaveOccurred())
 					var transportErr *quic.TransportError
@@ -345,13 +353,14 @@ var _ = Describe("Handshake tests", func() {
 				remoteAddr,
 				getTLSClientConfig(),
 				nil,
+				0,
 			)
 		}
 
 		BeforeEach(func() {
 			var err error
 			// start the server, but don't call Accept
-			server, err = quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig)
+			server, err = quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
 			Expect(err).ToNot(HaveOccurred())
 
 			// prepare a (single) packet conn for dialing to the server
@@ -432,7 +441,7 @@ var _ = Describe("Handshake tests", func() {
 
 	Context("ALPN", func() {
 		It("negotiates an application protocol", func() {
-			ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig)
+			ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
 			Expect(err).ToNot(HaveOccurred())
 
 			done := make(chan struct{})
@@ -449,6 +458,7 @@ var _ = Describe("Handshake tests", func() {
 				fmt.Sprintf("localhost:%d", ln.Addr().(*net.UDPAddr).Port),
 				getTLSClientConfig(),
 				nil,
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			defer conn.CloseWithError(0, "")
@@ -467,6 +477,7 @@ var _ = Describe("Handshake tests", func() {
 				fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 				tlsConf,
 				nil,
+				0,
 			)
 			Expect(err).To(HaveOccurred())
 			var transportErr *quic.TransportError
@@ -478,7 +489,7 @@ var _ = Describe("Handshake tests", func() {
 
 	Context("using tokens", func() {
 		It("uses tokens provided in NEW_TOKEN frames", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
 			Expect(err).ToNot(HaveOccurred())
 
 			// dial the first connection and receive the token
@@ -496,6 +507,7 @@ var _ = Describe("Handshake tests", func() {
 				fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 				getTLSClientConfig(),
 				quicConf,
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(gets).To(Receive())
@@ -515,6 +527,7 @@ var _ = Describe("Handshake tests", func() {
 				fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 				getTLSClientConfig(),
 				quicConf,
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			defer conn.CloseWithError(0, "")
@@ -527,7 +540,7 @@ var _ = Describe("Handshake tests", func() {
 			serverConfig.RequireAddressValidation = func(net.Addr) bool { return true }
 			serverConfig.MaxRetryTokenAge = time.Nanosecond
 
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
 			Expect(err).ToNot(HaveOccurred())
 			defer server.Close()
 
@@ -535,6 +548,7 @@ var _ = Describe("Handshake tests", func() {
 				fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 				getTLSClientConfig(),
 				nil,
+				0,
 			)
 			Expect(err).To(HaveOccurred())
 			var transportErr *quic.TransportError
@@ -566,6 +580,7 @@ var _ = Describe("Handshake tests", func() {
 			fmt.Sprintf("localhost:%d", ln.LocalAddr().(*net.UDPAddr).Port),
 			tlsConf,
 			nil,
+			0,
 		)
 		Expect(err).To(MatchError(&qerr.TransportError{
 			ErrorCode:    qerr.InternalError,

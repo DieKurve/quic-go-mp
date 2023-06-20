@@ -38,7 +38,7 @@ var _ = Describe("Connection ID lengths tests", func() {
 
 	runServer := func(conf *quic.Config) quic.Listener {
 		GinkgoWriter.Write([]byte(fmt.Sprintf("Using %d byte connection ID for the server\n", conf.ConnectionIDLength)))
-		ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), conf)
+		ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), conf,0)
 		Expect(err).ToNot(HaveOccurred())
 		go func() {
 			defer GinkgoRecover()
@@ -66,6 +66,7 @@ var _ = Describe("Connection ID lengths tests", func() {
 			fmt.Sprintf("localhost:%d", addr.(*net.UDPAddr).Port),
 			getTLSClientConfig(),
 			conf,
+			0,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		defer cl.CloseWithError(0, "")

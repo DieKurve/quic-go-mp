@@ -27,6 +27,7 @@ var _ = Describe("Connection ID lengths tests", func() {
 					getQuicConfig(&quic.Config{
 						DisablePathMTUDiscovery: true,
 					}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -52,6 +53,7 @@ var _ = Describe("Connection ID lengths tests", func() {
 					fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 					getTLSClientConfig(),
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 

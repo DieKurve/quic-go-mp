@@ -378,7 +378,7 @@ var _ = Describe("HTTP tests", func() {
 				It("serves other QUIC connections", func() {
 					tlsConf := testdata.GetTLSConfig()
 					tlsConf.NextProtos = []string{"h3"}
-					ln, err := quic.ListenAddr("localhost:0", tlsConf, nil)
+					ln, err := quic.ListenAddr("localhost:0", tlsConf, nil,0)
 					Expect(err).ToNot(HaveOccurred())
 					done := make(chan struct{})
 					go func() {

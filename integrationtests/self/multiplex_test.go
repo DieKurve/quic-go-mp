@@ -47,6 +47,7 @@ var _ = Describe("Multiplexing", func() {
 					fmt.Sprintf("localhost:%d", addr.(*net.UDPAddr).Port),
 					getTLSClientConfig(),
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				defer conn.CloseWithError(0, "")
@@ -63,6 +64,7 @@ var _ = Describe("Multiplexing", func() {
 						"localhost:0",
 						getTLSConfig(),
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					return ln
@@ -146,6 +148,7 @@ var _ = Describe("Multiplexing", func() {
 						conn,
 						getTLSConfig(),
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					runServer(server)
@@ -182,6 +185,7 @@ var _ = Describe("Multiplexing", func() {
 						conn1,
 						getTLSConfig(),
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					runServer(server1)
@@ -191,6 +195,7 @@ var _ = Describe("Multiplexing", func() {
 						conn2,
 						getTLSConfig(),
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					runServer(server2)

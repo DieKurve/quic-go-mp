@@ -15,7 +15,7 @@ import (
 
 var _ = Describe("Stream deadline tests", func() {
 	setup := func() (quic.Listener, quic.Stream, quic.Stream) {
-		server, err := quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil))
+		server, err := quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil),0)
 		Expect(err).ToNot(HaveOccurred())
 		strChan := make(chan quic.SendStream)
 		go func() {
@@ -33,6 +33,7 @@ var _ = Describe("Stream deadline tests", func() {
 			fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 			getTLSClientConfig(),
 			getQuicConfig(nil),
+			0,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		clientStr, err := conn.OpenStream()

@@ -57,6 +57,7 @@ var _ = Describe("early data", func() {
 					fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 					getTLSClientConfig(),
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				str, err := conn.AcceptUniStream(context.Background())

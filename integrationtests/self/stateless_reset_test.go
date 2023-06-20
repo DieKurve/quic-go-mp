@@ -27,7 +27,7 @@ var _ = Describe("Stateless Resets", func() {
 			rand.Read(statelessResetKey[:])
 			serverConfig := getQuicConfig(&quic.Config{StatelessResetKey: &statelessResetKey})
 
-			ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig)
+			ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
 			Expect(err).ToNot(HaveOccurred())
 			serverPort := ln.Addr().(*net.UDPAddr).Port
 
@@ -62,6 +62,7 @@ var _ = Describe("Stateless Resets", func() {
 					ConnectionIDLength: connIDLen,
 					MaxIdleTimeout:     2 * time.Second,
 				}),
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			str, err := conn.AcceptStream(context.Background())
@@ -80,6 +81,7 @@ var _ = Describe("Stateless Resets", func() {
 				fmt.Sprintf("localhost:%d", serverPort),
 				getTLSConfig(),
 				serverConfig,
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			drop.Store(false)

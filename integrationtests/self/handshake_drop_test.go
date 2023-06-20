@@ -53,7 +53,7 @@ var _ = Describe("Handshake drop tests", func() {
 			tlsConf = getTLSConfig()
 		}
 		var err error
-		ln, err = quic.ListenAddr("localhost:0", tlsConf, conf)
+		ln, err = quic.ListenAddr("localhost:0", tlsConf, conf,0)
 		Expect(err).ToNot(HaveOccurred())
 		serverPort := ln.Addr().(*net.UDPAddr).Port
 		proxy, err = quicproxy.NewQuicProxy("localhost:0", &quicproxy.Opts{
@@ -90,6 +90,7 @@ var _ = Describe("Handshake drop tests", func() {
 					HandshakeIdleTimeout: timeout,
 					Versions:             []protocol.VersionNumber{version},
 				}),
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			str, err := conn.OpenStream()
@@ -128,6 +129,7 @@ var _ = Describe("Handshake drop tests", func() {
 					HandshakeIdleTimeout: timeout,
 					Versions:             []protocol.VersionNumber{version},
 				}),
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			str, err := conn.AcceptStream(context.Background())
@@ -161,6 +163,7 @@ var _ = Describe("Handshake drop tests", func() {
 					HandshakeIdleTimeout: timeout,
 					Versions:             []protocol.VersionNumber{version},
 				}),
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			var serverConn quic.Connection

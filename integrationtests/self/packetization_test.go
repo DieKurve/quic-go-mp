@@ -29,6 +29,7 @@ var _ = Describe("Packetization", func() {
 				DisablePathMTUDiscovery: true,
 				Tracer:                  newTracer(func() logging.ConnectionTracer { return serverTracer }),
 			}),
+			0,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		serverAddr := fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port)
@@ -51,6 +52,7 @@ var _ = Describe("Packetization", func() {
 				DisablePathMTUDiscovery: true,
 				Tracer:                  newTracer(func() logging.ConnectionTracer { return clientTracer }),
 			}),
+			0,
 		)
 		Expect(err).ToNot(HaveOccurred())
 

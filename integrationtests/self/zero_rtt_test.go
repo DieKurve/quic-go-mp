@@ -94,6 +94,7 @@ var _ = Describe("0-RTT", func() {
 					fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 					clientConf,
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(puts).Should(Receive())
@@ -134,6 +135,7 @@ var _ = Describe("0-RTT", func() {
 					fmt.Sprintf("localhost:%d", proxyPort),
 					clientTLSConf,
 					clientConf,
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				defer conn.CloseWithError(0, "")
@@ -159,6 +161,7 @@ var _ = Describe("0-RTT", func() {
 					fmt.Sprintf("localhost:%d", proxyPort),
 					clientConf,
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				str, err := conn.OpenUniStream()
@@ -293,6 +296,7 @@ var _ = Describe("0-RTT", func() {
 					fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 					clientConf,
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				firstStr, err := conn.OpenUniStream()
@@ -495,6 +499,7 @@ var _ = Describe("0-RTT", func() {
 					fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 					clientConf,
 					getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 				str, err := conn.OpenUniStream()
@@ -632,6 +637,7 @@ var _ = Describe("0-RTT", func() {
 						fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 						clientConf,
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					str, err := conn.OpenUniStream()
@@ -704,6 +710,7 @@ var _ = Describe("0-RTT", func() {
 						fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 						clientConf,
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					// The client remembers that it was allowed to open 2 uni-directional streams.

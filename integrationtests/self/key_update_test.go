@@ -56,7 +56,7 @@ var _ = Describe("Key Update tests", func() {
 		defer func() { handshake.KeyUpdateInterval = origKeyUpdateInterval }()
 		handshake.KeyUpdateInterval = 1 // update keys as frequently as possible
 
-		server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil)
+		server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil,0)
 		Expect(err).ToNot(HaveOccurred())
 		defer server.Close()
 
@@ -75,6 +75,7 @@ var _ = Describe("Key Update tests", func() {
 			fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
 			getTLSClientConfig(),
 			getQuicConfig(&quic.Config{Tracer: newTracer(func() logging.ConnectionTracer { return &keyUpdateConnTracer{} })}),
+			0,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		str, err := conn.AcceptUniStream(context.Background())

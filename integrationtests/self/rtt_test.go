@@ -24,6 +24,7 @@ var _ = Describe("non-zero RTT", func() {
 				"localhost:0",
 				getTLSConfig(),
 				getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			go func() {
@@ -44,6 +45,7 @@ var _ = Describe("non-zero RTT", func() {
 				fmt.Sprintf("localhost:%d", port),
 				getTLSClientConfig(),
 				getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+				0,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			str, err := conn.AcceptStream(context.Background())
@@ -80,6 +82,7 @@ var _ = Describe("non-zero RTT", func() {
 						fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 						getTLSClientConfig(),
 						getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					str, err := conn.AcceptStream(context.Background())

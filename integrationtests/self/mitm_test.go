@@ -39,7 +39,7 @@ var _ = Describe("MITM test", func() {
 				Expect(err).ToNot(HaveOccurred())
 				serverUDPConn, err = net.ListenUDP("udp", addr)
 				Expect(err).ToNot(HaveOccurred())
-				ln, err := quic.Listen(serverUDPConn, getTLSConfig(), serverConfig)
+				ln, err := quic.Listen(serverUDPConn, getTLSConfig(), serverConfig,0)
 				Expect(err).ToNot(HaveOccurred())
 				done := make(chan struct{})
 				go func() {
@@ -162,6 +162,7 @@ var _ = Describe("MITM test", func() {
 								Versions:           []protocol.VersionNumber{version},
 								ConnectionIDLength: connIDLen,
 							}),
+							0,
 						)
 						Expect(err).ToNot(HaveOccurred())
 						str, err := conn.AcceptUniStream(context.Background())
@@ -209,6 +210,7 @@ var _ = Describe("MITM test", func() {
 							Versions:           []protocol.VersionNumber{version},
 							ConnectionIDLength: connIDLen,
 						}),
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 					str, err := conn.AcceptUniStream(context.Background())
@@ -328,6 +330,7 @@ var _ = Describe("MITM test", func() {
 							ConnectionIDLength:   connIDLen,
 							HandshakeIdleTimeout: 2 * time.Second,
 						}),
+						0,
 					)
 					return closeFn, err
 				}
