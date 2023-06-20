@@ -106,19 +106,19 @@ var _ = Describe("Server", func() {
 	})
 
 	It("errors when no tls.Config is given", func() {
-		_, err := ListenAddr("localhost:0", nil, nil)
+		_, err := ListenAddr("localhost:0", nil, nil,0)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("quic: tls.Config not set"))
 	})
 
 	It("errors when the Config contains an invalid version", func() {
 		version := protocol.VersionNumber(0x1234)
-		_, err := Listen(nil, tlsConf, &Config{Versions: []protocol.VersionNumber{version}})
+		_, err := Listen(nil, tlsConf, &Config{Versions: []protocol.VersionNumber{version}},0)
 		Expect(err).To(MatchError("0x1234 is not a valid QUIC version"))
 	})
 
 	It("fills in default values if options are not set in the Config", func() {
-		ln, err := Listen(conn, tlsConf, &Config{})
+		ln, err := Listen(conn, tlsConf, &Config{},0)
 		Expect(err).ToNot(HaveOccurred())
 		server := ln.(*baseServer)
 		Expect(server.config.Versions).To(Equal(protocol.SupportedVersions))
@@ -141,7 +141,7 @@ var _ = Describe("Server", func() {
 			StatelessResetKey:        &StatelessResetKey{'f', 'o', 'o', 'b', 'a', 'r'},
 			RequireAddressValidation: requireAddrVal,
 		}
-		ln, err := Listen(conn, tlsConf, &config)
+		ln, err := Listen(conn, tlsConf, &config,0)
 		Expect(err).ToNot(HaveOccurred())
 		server := ln.(*baseServer)
 		Expect(server.connHandler).ToNot(BeNil())
@@ -157,7 +157,7 @@ var _ = Describe("Server", func() {
 
 	It("listens on a given address", func() {
 		addr := "127.0.0.1:13579"
-		ln, err := ListenAddr(addr, tlsConf, &Config{})
+		ln, err := ListenAddr(addr, tlsConf, &Config{},0)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ln.Addr().String()).To(Equal(addr))
 		// stop the listener
@@ -166,13 +166,13 @@ var _ = Describe("Server", func() {
 
 	It("errors if given an invalid address", func() {
 		addr := "127.0.0.1"
-		_, err := ListenAddr(addr, tlsConf, &Config{})
+		_, err := ListenAddr(addr, tlsConf, &Config{},0)
 		Expect(err).To(BeAssignableToTypeOf(&net.AddrError{}))
 	})
 
 	It("errors if given an invalid address", func() {
 		addr := "1.1.1.1:1111"
-		_, err := ListenAddr(addr, tlsConf, &Config{})
+		_, err := ListenAddr(addr, tlsConf, &Config{},0)
 		Expect(err).To(BeAssignableToTypeOf(&net.OpError{}))
 	})
 
@@ -185,7 +185,7 @@ var _ = Describe("Server", func() {
 
 		BeforeEach(func() {
 			tracer = mocklogging.NewMockTracer(mockCtrl)
-			ln, err := Listen(conn, tlsConf, &Config{Tracer: tracer})
+			ln, err := Listen(conn, tlsConf, &Config{Tracer: tracer},0)
 			Expect(err).ToNot(HaveOccurred())
 			serv = ln.(*baseServer)
 			phm = NewMockPacketHandlerManager(mockCtrl)
