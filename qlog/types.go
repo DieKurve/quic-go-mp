@@ -209,6 +209,8 @@ func (e transportError) String() string {
 		return "aead_limit_reached"
 	case qerr.NoViablePathError:
 		return "no_viable_path"
+	case qerr.MPProtocolViolation:
+		return "mp_protocol_violation"
 	default:
 		return ""
 	}
