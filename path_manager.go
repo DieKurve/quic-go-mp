@@ -1,6 +1,5 @@
 package quic
 
-
 import (
 	"errors"
 	"github.com/quic-go/quic-go/internal/wire"
@@ -39,7 +38,7 @@ func (pm *pathManager) setup(conn *connection) {
 
 	connIDPath, err := protocol.GenerateConnectionIDForInitial()
 	pm.nxtPathID = connIDPath
-	if err != nil{
+	if err != nil {
 		return
 	}
 
@@ -55,9 +54,9 @@ func (pm *pathManager) setup(conn *connection) {
 
 	// Set up the first path of the connection
 	pm.conn.paths[1] = &path{
-		pathID: pm.nxtPathID,
-		conn:   pm.conn,
-		pathConn:  sconn{},
+		pathID:   pm.nxtPathID,
+		conn:     pm.conn,
+		pathConn: sconn{},
 	}
 
 	// Setup this first path
@@ -160,7 +159,7 @@ func (pm *pathManager) createPath(locAddr net.UDPAddr, remAddr net.UDPAddr) erro
 	}
 	nxtPathID, err := protocol.GenerateConnectionID(10)
 	pm.nxtPathID = nxtPathID
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	// Send a PING frame to get latency info about the new path and informing the
@@ -204,7 +203,7 @@ func (pm *pathManager) createPaths() error {
 	return nil
 }
 
-func (pm *pathManager) createPathFromRemote(hdr *wire.Header,p *receivedPacket) (*path, error) {
+func (pm *pathManager) createPathFromRemote(hdr *wire.Header, p *receivedPacket) (*path, error) {
 	pm.conn.pathMutex.Lock()
 	defer pm.conn.pathMutex.Unlock()
 	localPconn := p.info
@@ -244,7 +243,7 @@ func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {
 	}
 
 	if pth.status.Load() {
-		pth.closeChan <- nil
+		//pth.closeChan <- nil
 	}
 
 	return nil
@@ -256,7 +255,7 @@ func (pm *pathManager) closePaths() {
 	for _, pth := range paths {
 		if pth.status.Load() {
 			select {
-			case pth.closeChan <- nil:
+			//case pth.closeChan <- nil:
 			default:
 				// Don't remain stuck here!
 			}
@@ -264,4 +263,3 @@ func (pm *pathManager) closePaths() {
 	}
 	pm.conn.pathMutex.RUnlock()
 }
-

@@ -226,9 +226,9 @@ type connection struct {
 	pathMutex        sync.RWMutex
 	multipathEnabled bool
 
-	pathTimers          chan *path
-	pathManager         *pathManager
-	pathManagerLaunched bool
+	pathTimers chan *path
+	//pathManager         *pathManager
+	//pathManagerLaunched bool
 
 	logID  string
 	tracer logging.ConnectionTracer

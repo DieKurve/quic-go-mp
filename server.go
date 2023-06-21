@@ -216,7 +216,7 @@ func listen(conn net.PacketConn, tlsConf *tls.Config, config *Config, acceptEarl
 		newConn:          newConnection,
 		logger:           utils.DefaultLogger.WithPrefix("server"),
 		acceptEarlyConns: acceptEarly,
-		enableMultipath: enableMultipath,
+		enableMultipath:  enableMultipath,
 	}
 	go s.run()
 	connHandler.SetServer(s)
