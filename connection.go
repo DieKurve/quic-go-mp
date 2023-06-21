@@ -1792,6 +1792,12 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters) 
 	} else if params.RetrySourceConnectionID != nil {
 		return errors.New("received retry_source_connection_id, although no Retry was performed")
 	}
+
+	if params.EnableMultipath == 0x1 && s.origDestConnID.Len() == 0 {
+		return errors.New("zero length connection id used for multipath")
+	} else if params.EnableMultipath > 1 {
+		return errors.New("illegal enable_multipath transport parameter")
+	}
 	return nil
 }
 
