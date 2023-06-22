@@ -1,31 +1,32 @@
 package quic
 
 import (
+	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/quic-go/quic-go/internal/ackhandler"
 	"github.com/quic-go/quic-go/internal/congestion"
 	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/qerr"
 	"github.com/quic-go/quic-go/internal/utils"
 )
-
-/*const (
-	minPathTimer = 10 * time.Millisecond
-	// XXX (QDC): To avoid idling...
-	maxPathTimer = 1 * time.Second
-)*/
 
 type path struct {
 	// Connection ID of the path
 	pathID protocol.ConnectionID
+	// Sequence Number of the path
+	pathSeqNum uint64
+
 	// Current connection which is the path runs on
 	conn *connection
 
+	srcAddress net.Addr
+	destAddress net.Addr
+
 	congestionSender congestion.SendAlgorithm
 
-	pathConn sconn
+	pathConn sendConn
 
 	rttStats *utils.RTTStats
 
@@ -33,9 +34,13 @@ type path struct {
 	receivedPacketHandler ackhandler.ReceivedMPPacketHandler
 
 	// Status if path is available or is on standby
+	// True if path is available
+	// False if path is in standby
 	status    atomic.Bool
-	closeChan chan *qerr.ApplicationError
 	runClosed chan struct{}
+	closeOnce sync.Once
+	// closeChan is used to notify the run loop that it should terminate
+	closeChan chan closeError
 
 	sentPacket chan struct{}
 
@@ -55,27 +60,17 @@ type path struct {
 // setup initializes values that are independent of the perspective
 func (p *path) setup() {
 	p.rttStats = &utils.RTTStats{}
-	//var cong congestion.SendAlgorithm
 
-	/*if p.conn.version >= protocol.Version1 && p.congestionSender != nil && p.pathID != p.conn.origDestConnID {
-		p.congestionSender = congestion.NewCubicSender(congestion.DefaultClock{}, p.rttStats, protocol.MaxPacketBufferSize, true, tracer)
-	}*/
+	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(0, protocol.MaxPacketBufferSize, p.rttStats, true, p.conn.getPerspective(), nil, p.conn.logger)
 
-	now := time.Now()
-
-	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(0, protocol.MaxPacketBufferSize, p.rttStats, true, 1, nil, p.conn.logger)
-
-	//p.packetNumberGenerator = p.sentPacketHandler.
-
-	p.closeChan = make(chan *qerr.ApplicationError, 1)
+	p.closeChan = make(chan closeError, 1)
 	p.runClosed = make(chan struct{}, 1)
 	p.sentPacket = make(chan struct{}, 1)
 
 	p.timer = utils.NewTimer()
-	p.lastNetworkActivityTime = now
+	p.lastNetworkActivityTime = time.Now()
 
 	p.status.Store(true)
-	//p.potentiallyFailed.Store(false)
 
 	// Once the path is set up, run it
 	go p.run()
@@ -87,7 +82,6 @@ func (p *path) close() error {
 }
 
 func (p *path) run() {
-	// XXX (QDC): relay everything to the session, maybe not the most efficient
 runLoop:
 	for {
 		// Close immediately if requested
@@ -132,14 +126,9 @@ func (p *path) SendingAllowed() bool {
 	return false
 }
 
-/*func (p *path) GetAckFrame() *wire.AckMPFrame {
-	ack := p.receivedPacketHandler.GetAckMPFrame()
-	if ack != nil {
-		ack.DestinationConnectionIDSequenceNumber = p.pathID
-	}
-
-	return ack
-}*/
+//func (p *path) handleAckMPFrame(frame *wire.AckMPFrame, encLevel protocol.EncryptionLevel) error{
+//	return nil
+//}
 
 /*
 func (p *path) handlePathAbandonFrame() *wire.PathAbandonFrame {
@@ -244,6 +233,17 @@ func (p *path) idleTimeout() time.Duration {
 
 	return p.conn.handleFrames(data,destConnID, protocol.Encryption1RTT, )
 }*/
+
+func (p *path) closeLocal(e error) {
+	p.conn.closeOnce.Do(func() {
+		if e == nil {
+			p.conn.logger.Infof("Closing path.")
+		} else {
+			p.conn.logger.Errorf("Closing path with error: %s", e)
+		}
+		p.closeChan <- closeError{err: e, immediate: false, remote: false}
+	})
+}
 
 func (p *path) onRTO(lastSentTime time.Time) bool {
 	// Was there any activity since last sent packet?

@@ -155,15 +155,16 @@ type connection struct {
 
 	rttStats *utils.RTTStats
 
-	cryptoStreamManager   *cryptoStreamManager
-	sentPacketHandler     ackhandler.SentPacketHandler
-	receivedPacketHandler ackhandler.ReceivedPacketHandler
-	retransmissionQueue   *retransmissionQueue
-	framer                framer
-	windowUpdateQueue     *windowUpdateQueue
-	connFlowController    flowcontrol.ConnectionFlowController
-	tokenStoreKey         string                    // only set for the client
-	tokenGenerator        *handshake.TokenGenerator // only set for the server
+	cryptoStreamManager     *cryptoStreamManager
+	sentPacketHandler       ackhandler.SentPacketHandler
+	receivedPacketHandler   ackhandler.ReceivedPacketHandler
+	receivedPacketHandlerMP ackhandler.ReceivedMPPacketHandler
+	retransmissionQueue     *retransmissionQueue
+	framer                  framer
+	windowUpdateQueue       *windowUpdateQueue
+	connFlowController      flowcontrol.ConnectionFlowController
+	tokenStoreKey           string                    // only set for the client
+	tokenGenerator          *handshake.TokenGenerator // only set for the server
 
 	unpacker      unpacker
 	frameParser   wire.FrameParser
@@ -222,18 +223,17 @@ type connection struct {
 	connState      ConnectionState
 
 	paths            map[uint64]*path
-	closedPaths      map[uint64]bool
 	pathMutex        sync.RWMutex
 	multipathEnabled bool
 
-	pathTimers chan *path
-	//pathManager         *pathManager
-	//pathManagerLaunched bool
+	pathTimers  chan *path
+	pathManager *pathManager
 
 	logID  string
 	tracer logging.ConnectionTracer
 	logger utils.Logger
 }
+
 
 var (
 	_ Connection      = &connection{}
@@ -297,9 +297,7 @@ var newConnection = func(
 		s.config.ConnectionIDGenerator,
 	)
 	s.preSetup()
-	if s.multipathEnabled {
-		s.multiPathSetup()
-	}
+
 	s.ctx, s.ctxCancel = context.WithCancel(context.WithValue(context.Background(), ConnectionTracingKey, tracingID))
 	s.sentPacketHandler, s.receivedPacketHandler = ackhandler.NewAckHandler(
 		0,
@@ -370,11 +368,19 @@ var newConnection = func(
 	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
 	s.cryptoStreamManager = newCryptoStreamManager(cs, initialStream, handshakeStream, s.oneRTTStream)
-	if multiPath == 0x1 {
-		/*err := s.CreatePath(s.perspective)
-		  if err != nil {
-		  	return nil
-		  }*/
+	//TODO Check if needed here
+	if s.multipathEnabled {
+		s.multiPathSetup()
+		s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
+			0,
+			getMaxPacketSize(s.conn.RemoteAddr()),
+			s.rttStats,
+			clientAddressValidated,
+			s.perspective,
+			s.tracer,
+			s.logger,
+		)
+		s.receivedPacketHandler = nil
 	}
 	return s
 }
@@ -499,6 +505,9 @@ var newClientConnection = func(
 			s.packer.SetToken(token.data)
 		}
 	}
+	if s.multipathEnabled {
+		s.multiPathSetup()
+	}
 	return s
 }
 
@@ -544,14 +553,11 @@ func (s *connection) preSetup() {
 }
 
 func (s *connection) multiPathSetup() {
-	pathCID, _ := protocol.GenerateConnectionID(20)
-	s.paths[1] = &path{
-		pathID:   pathCID,
-		conn:     s,
-		pathConn: sconn{remoteAddr: s.RemoteAddr()},
+	s.pathManager = &pathManager{}
+	err := s.pathManager.setup(s)
+	if err != nil {
+		return
 	}
-	s.paths[1].setup()
-
 }
 
 // run the connection main loop
@@ -1382,7 +1388,7 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 	case *wire.PathStatusFrame:
 		err = s.handlePathStatusFrame(frame)
 	case *wire.PathAbandonFrame:
-		s.handlePathAbandonFrame(frame)
+		err = s.handlePathAbandonFrame(frame)
 	default:
 		err = fmt.Errorf("unexpected frame type: %s", reflect.ValueOf(&frame).Elem().Type().Name())
 	}
@@ -1547,6 +1553,12 @@ func (s *connection) handleDatagramFrame(f *wire.DatagramFrame) error {
 }
 
 func (s *connection) handleACKMPFrame(frame *wire.AckMPFrame, encLevel protocol.EncryptionLevel) error {
+	if len(s.paths) != 0 {
+		err := s.paths[frame.DestinationConnectionIDSequenceNumber].handleAckMPFrame(frame, encLevel)
+		if err != nil {
+			return err
+		}
+	}
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAckMP(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
 		return err
@@ -1574,18 +1586,28 @@ func (s *connection) handlePathStatusFrame(frame *wire.PathStatusFrame) error {
 	return nil
 }
 
-func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame) {
+func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame) error {
 	pathCID := frame.DestinationConnectionIDSequenceNumber
-	err := s.paths[pathCID].close()
+	// Get Connection ID from DestinationConnectionIDSequenceNumber
+
+	err := s.pathManager.closePath(pathCID)
 	if err != nil {
-		s.closeRemote(&qerr.TransportError{
-			Remote:       true,
-			ErrorCode:    qerr.TransportErrorCode(frame.ErrorCode),
-			FrameType:    frame.FrameType,
-			ErrorMessage: frame.ReasonPhrase,
-		})
+		return err
 	}
-	s.logger.Infof("Path %s closed.", pathCID)
+
+	// Wait 3 PTOs before closing the path
+	// waitTime := 3 * 60 * time.Second
+
+	// Send RETIRE_CONNECTION_ID Frame
+
+	s.logger.Infof("Path %s closed. Reason: %s", pathCID, frame.ReasonPhrase)
+
+	return &qerr.TransportError{
+		ErrorCode:    qerr.TransportErrorCode(frame.ErrorCode),
+		ErrorMessage: frame.ReasonPhrase,
+		FrameType:    frame.FrameType,
+	}
+
 }
 
 // closeLocal closes the connection and send a CONNECTION_CLOSE containing the error
@@ -1792,7 +1814,6 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters) 
 	} else if params.RetrySourceConnectionID != nil {
 		return errors.New("received retry_source_connection_id, although no Retry was performed")
 	}
-
 	if params.EnableMultipath == 0x1 && s.origDestConnID.Len() == 0 {
 		return errors.New("zero length connection id used for multipath")
 	} else if params.EnableMultipath > 1 {
@@ -1827,7 +1848,7 @@ func (s *connection) applyTransportParameters() {
 		}
 	}
 	// Enable Multipath if parameter is 0x1 else don't enable it
-	if params.EnableMultipath == 0x1 {
+	if params.EnableMultipath == 0x1 && !params.DisableActiveMigration {
 		s.multipathEnabled = true
 	}
 }
@@ -2302,24 +2323,20 @@ func (s *connection) NextConnection() Connection {
 	return s
 }
 
-/*func (s *connection) CreatePath(perspective protocol.Perspective) error {
-	if len(s.paths) < protocol.MaxActiveConnectionIDs {
-		newPath := &path{}
-		newPath.setup(perspective, s.tracer)
-		//pCID, err := protocol.GenerateConnectionID(20)
-		if err != nil{
-			return err
-		}
-		s.paths[1] = newPath
-		return nil
-	}
-	return &qerr.TransportError{
-		Remote:    true,
-		ErrorCode: qerr.TransportErrorCode(0x9),
-	}
-}*/
-
 func (s *connection) schedulePathsFrame() {
 	//s.lastPathsFrameSent = time.Now()
 	//s.framer.AddPathsFrameForTransmission(s)
+}
+
+func (s *connection) OpenPath() error{
+
+	// Check if maximum amount of paths is reached
+	if len(s.paths) >= protocol.MaxActiveConnectionIDs{
+		return errors.New("no additional path can be created, a path has to be retired")
+	}
+	err := s.pathManager.createPath(nil, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
