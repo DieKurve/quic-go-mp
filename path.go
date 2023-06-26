@@ -88,6 +88,7 @@ func (p *path) setup() {
 }
 
 func (p *path) close() error {
+	p.sentPacketHandler.DropPackets(protocol.Encryption1RTT)
 	p.status.Store(false)
 	return nil
 }
