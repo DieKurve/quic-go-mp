@@ -126,32 +126,6 @@ func (p *path) SendingAllowed() bool {
 	return false
 }
 
-//func (p *path) handleAckMPFrame(frame *wire.AckMPFrame, encLevel protocol.EncryptionLevel) error{
-//	return nil
-//}
-
-/*
-func (p *path) handlePathAbandonFrame() *wire.PathAbandonFrame {
-	return nil
-}
-*/
-
-/*
-func (p *path) handlePathStatusFrame() *wire.PathStatusFrame {
-	return nil
-}
-*/
-
-/*
-func (p *path) GetPathAbandonFrame() *wire.PathAbandonFrame {
-	pathAbandonFrame := p.receivedPacketHandler.GetClosePathFrame()
-	if closePathFrame != nil {
-		closePathFrame.PathID = p.pathID
-	}
-
-	return closePathFrame
-}*/
-
 func (p *path) idleTimeoutStartTime() time.Time {
 	return utils.MaxTime(p.lastNetworkActivityTime, p.conn.firstAckElicitingPacketAfterIdleSentTime)
 }
