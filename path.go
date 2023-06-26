@@ -156,57 +156,11 @@ func (p *path) idleTimeout() time.Duration {
 		return p.conn.config.HandshakeTimeout
 	}
 	return time.Second
-}*/
+}
 
-/*func (p *path) handlePacketImpl(pkt *receivedPacket, destConnID protocol.ConnectionID) (bool, error) {
-	if !p.status.Load() {
-		// Path is closed, ignore packet
-		return false, nil
-	}
-
-	if !pkt.rcvTime.IsZero() {
-		p.lastNetworkActivityTime = pkt.rcvTime
-	}
-
-	// We just received a new packet on that path, so it works
-	//p.potentiallyFailed.Store(false)
-	// Calculate packet number
-	pn, _, _, data, err := p.conn.unpacker.UnpackShortHeader(pkt.rcvTime, pkt.data)
-
-		if p.conn.logger.Debug() {
-		if err != nil {
-			p.conn.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %x on path %x", pn, len(data), destConnID, p.pathID)
-		}
-	}
-
-	// if the decryption failed, this might be a packet sent by an attacker
-	// don't update the remote address
-	if quicErr, ok := err.(*qerr.TransportErrorCode); ok && quicErr.String() == qerr.InternalError.String() {
-		return err
-	}
-	if p.conn.perspective == protocol.PerspectiveServer {
-		// update the remote address, even if unpacking failed for any other reason than a decryption error
-		p.conn.RemoteAddr()
-	}
-	if err != nil {
-		return false, err
-	}
-
-	p.lastRcvdPacketNumber = pn
-	// Only do this after decrupting, so we are sure the packet is not attacker-controlled
-	p.largestRcvdPacketNumber = utils.Max(p.largestRcvdPacketNumber, pn)
-
-	isRetransmittable := ackhandler.HasAckElicitingFrames(data[0])
-	if err = p.receivedPacketHandler.ReceivedPacket(pn, isRetransmittable); err != nil {
-		return err
-	}
-
-	if err != nil {
-		return false, err
-	}
-
-	return p.conn.handleFrames(data,destConnID, protocol.Encryption1RTT, )
-}*/
+func (p *path) handlePacketImpl(rp *receivedPacket) bool {
+	return p.conn.handlePacketImpl(rp)
+}
 
 func (p *path) closeLocal(e error) {
 	p.conn.closeOnce.Do(func() {
