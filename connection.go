@@ -2328,13 +2328,13 @@ func (s *connection) schedulePathsFrame() {
 	//s.framer.AddPathsFrameForTransmission(s)
 }
 
-func (s *connection) OpenPath() error{
+func (s *connection) OpenPath(srcAddr string, destAddr string) error {
 
 	// Check if maximum amount of paths is reached
-	if len(s.paths) >= protocol.MaxActiveConnectionIDs{
+	if len(s.paths) >= protocol.MaxActiveConnectionIDs {
 		return errors.New("no additional path can be created, a path has to be retired")
 	}
-	err := s.pathManager.createPath(nil, nil)
+	err := s.pathManager.createPath(srcAddr, destAddr)
 	if err != nil {
 		return err
 	}
