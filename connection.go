@@ -229,10 +229,12 @@ type connection struct {
 	pathTimers  chan *path
 	pathManager *pathManager
 
-	logID  string
-	tracer logging.ConnectionTracer
-	logger utils.Logger
+	logID              string
+	tracer             logging.ConnectionTracer
+	logger             utils.Logger
+	lastPathsFrameSent time.Time
 }
+
 
 
 var (
@@ -865,7 +867,6 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 		s.handleVersionNegotiationPacket(rp)
 		return false
 	}
-
 	var counter uint8
 	var lastConnID protocol.ConnectionID
 	var processed bool
@@ -2179,7 +2180,7 @@ func (s *connection) logCoalescedPacket(packet *coalescedPacket) {
 	}
 }
 
-// AcceptStream returns the next stream openend by the peer
+// AcceptStream returns the next stream opened by the peer
 func (s *connection) AcceptStream(ctx context.Context) (Stream, error) {
 	return s.streamsMap.AcceptStream(ctx)
 }
