@@ -61,19 +61,30 @@ type path struct {
 func (p *path) setup() {
 	p.rttStats = &utils.RTTStats{}
 
-	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(0, protocol.MaxPacketBufferSize, p.rttStats, true, p.conn.getPerspective(), nil, p.conn.logger)
-
+	// Create sentPackethandler and receivedPacketHandler for sending and receiving Packets
+	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(
+		0,
+		protocol.MaxPacketBufferSize,
+		p.rttStats,
+		true,
+		p.conn.getPerspective(),
+		nil,
+		p.conn.logger,
+	)
+	// Create Channels
 	p.closeChan = make(chan closeError, 1)
 	p.runClosed = make(chan struct{}, 1)
 	p.sentPacket = make(chan struct{}, 1)
 
+	// Initialise Timer
 	p.timer = utils.NewTimer()
 	p.lastNetworkActivityTime = time.Now()
 
+	p.sendQueue = newSendQueue(p.pathConn)
+
+	// Set path to be available
 	p.status.Store(true)
 
-	// Once the path is set up, run it
-	go p.run()
 }
 
 func (p *path) close() error {
