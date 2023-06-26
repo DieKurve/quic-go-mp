@@ -112,16 +112,16 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 }
 
 // closes the path with the given connection id and deletes it from the path map in connection
-func (pm *pathManager) closePath(pthID uint64) error {
-	pm.connection.pathMutex.RLock()
-	defer pm.connection.pathMutex.RUnlock()
+func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {
+	pm.connection.pathLock.RLock()
+	defer pm.connection.pathLock.RUnlock()
 
 	pth, ok := pm.connection.paths[pthID]
 	if !ok {
 		if pm.connection.logger.Debug() {
 			pm.connection.logger.Debugf("no path with connection id: %i", pthID)
 		}
-		return errors.New("no path with connection id: " + strconv.FormatUint(pthID, 10))
+		return errors.New("no path with connection id: " + pthID.String())
 	}
 
 	err := pth.close()
@@ -129,6 +129,7 @@ func (pm *pathManager) closePath(pthID uint64) error {
 		return err
 	}
 
+	// Delete path if all packets are either acknowledged or dropped
 	delete(pm.connection.paths, pthID)
 	return nil
 }
