@@ -1,6 +1,7 @@
 package quic
 
 import (
+	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -15,20 +16,24 @@ import (
 type path struct {
 	// Connection ID of the path
 	pathID protocol.ConnectionID
-	// Sequence Number of the path
-	pathSeqNum uint64
 
 	// Current connection which is the path runs on
 	conn *connection
 
+	// IP-Address of client
 	srcAddress net.Addr
+	// IP-Address of peer
 	destAddress net.Addr
 
+	// Congestion Control
 	congestionSender congestion.SendAlgorithm
 
 	pathConn sendConn
 
 	rttStats *utils.RTTStats
+
+	// Flowcontroller for the packets send on this path
+	flowController flowcontrol.PathFlowController
 
 	sentPacketHandler     ackhandler.SentPacketHandler
 	receivedPacketHandler ackhandler.ReceivedMPPacketHandler
@@ -41,6 +46,8 @@ type path struct {
 	closeOnce sync.Once
 	// closeChan is used to notify the run loop that it should terminate
 	closeChan chan closeError
+
+	sendQueue sender
 
 	sentPacket chan struct{}
 
