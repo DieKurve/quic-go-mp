@@ -222,8 +222,8 @@ type connection struct {
 	connStateMutex sync.Mutex
 	connState      ConnectionState
 
-	paths            map[uint64]*path
-	pathMutex        sync.RWMutex
+	paths            map[protocol.ConnectionID]*path
+	pathLock         sync.RWMutex
 	multipathEnabled bool
 
 	pathTimers  chan *path
