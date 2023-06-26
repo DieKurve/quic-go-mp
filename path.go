@@ -157,15 +157,14 @@ func (p *path) maybeResetTimer() {
 	//p.timer.Reset(deadline)
 }
 
-/*
 func (p *path) idleTimeout() time.Duration {
 	// TODO (QDC): probably this should be refined at path level
-	cryptoSetup := p.conn.cr
+	cryptoSetup := p.conn.cryptoStreamManager
 	if cryptoSetup != nil {
-		if p.open.Load() && (p.pathID != 0 || p.conn.handshakeComplete) {
-			return p.conn.connectionParameters.GetIdleConnectionStateLifetime()
+		if p.status.Load() && p.conn.handshakeComplete {
+			return p.conn.config.MaxIdleTimeout
 		}
-		return p.conn.config.HandshakeTimeout
+		return p.conn.config.handshakeTimeout()
 	}
 	return time.Second
 }
