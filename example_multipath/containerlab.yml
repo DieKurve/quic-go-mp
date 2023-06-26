@@ -1,0 +1,31 @@
+name: quic-go-mp
+
+mgmt:
+  network: quic-go-net
+  ipv4-subnet: 172.200.0.0/16
+  ipv6-subnet: 2001:db8::/64
+
+topology:
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+    linux:
+      image: alpine
+  nodes:
+    client:
+      kind: linux
+      mgmt-ipv4: 172.200.0.3
+      group: server
+    router:
+      kind: srl
+      mgmt-ipv4: 172.200.0.2
+    server:
+      kind: linux
+      mgmt-ipv4: 172.200.0.4
+      group: server
+
+  links:
+    - endpoints: ["client:eth1","router:e1-1"]
+    - endpoints: ["client:eth2","router:e1-2"]
+    - endpoints: ["client:eth3","router:e1-3"]
+    - endpoints: ["server:eth1","router:e1-4"]
