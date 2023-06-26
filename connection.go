@@ -1573,23 +1573,18 @@ func (s *connection) handleACKMPFrame(frame *wire.AckMPFrame, encLevel protocol.
 	return s.cryptoStreamHandler.SetLargest1RTTAcked(frame.LargestAcked())
 }
 
-func (s *connection) handlePathStatusFrame(frame *wire.PathStatusFrame) error {
-	pathStatus := frame.PathStatus
-	pathCID := frame.DestinationConnectionIDSequenceNumber
-	currentPath := s.paths[pathCID]
-	if pathStatus == 1 {
-		currentPath.status.Store(false)
-		s.logger.Infof("Path %s is now in standby", pathCID)
-	} else if pathStatus == 2 {
-		currentPath.status.Store(true)
-		s.logger.Infof("Path %s is now available", pathCID)
+func (s *connection) handlePathStatusFrame(frame *wire.PathStatusFrame, destID protocol.ConnectionID) error {
+	if frame.PathStatus == 0x1{
+		s.paths[destID].status.Store(false)
+	}else if frame.PathStatus == 0x2 {
+		s.paths[destID].status.Store(true)
+	}else{
+		return errors.New("invalid path status")
 	}
-	return nil
+		return nil
 }
 
-func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame) error {
-	pathCID := frame.DestinationConnectionIDSequenceNumber
-	// Get Connection ID from DestinationConnectionIDSequenceNumber
+func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame, pathCID protocol.ConnectionID) error {
 
 	err := s.pathManager.closePath(pathCID)
 	if err != nil {
