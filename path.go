@@ -126,7 +126,7 @@ runLoop:
 	if err != nil {
 		return
 	}
-	//p.sendQueue.Close()
+	p.sendQueue.Close()
 	p.timer.Stop()
 	p.runClosed <- struct{}{}
 }
