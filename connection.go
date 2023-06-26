@@ -1387,9 +1387,9 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 		err = s.handleACKMPFrame(frame, encLevel)
 		wire.PutAckMPFrame(frame)
 	case *wire.PathStatusFrame:
-		err = s.handlePathStatusFrame(frame)
+		err = s.handlePathStatusFrame(frame, destConnID)
 	case *wire.PathAbandonFrame:
-		err = s.handlePathAbandonFrame(frame)
+		err = s.handlePathAbandonFrame(frame, destConnID)
 	default:
 		err = fmt.Errorf("unexpected frame type: %s", reflect.ValueOf(&frame).Elem().Type().Name())
 	}
