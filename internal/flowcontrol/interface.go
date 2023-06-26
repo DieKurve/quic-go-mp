@@ -40,3 +40,8 @@ type connectionFlowControllerI interface {
 	// for receiving
 	IncrementHighestReceived(protocol.ByteCount) error
 }
+
+type PathFlowController interface {
+	flowController
+	Reset() error
+}
