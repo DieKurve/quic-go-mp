@@ -36,7 +36,7 @@ func getAddresses() []string{
         panic(err)
       }
       if utils.IsIPv4(ip){
-        utils.DefaultLogger.Infof("Added %s Address", ip.String())
+        fmt.Println("Added " + ip.String())
         addresses = append(addresses, ip.String()+":10033")
         continue interfaceLoop
       }
