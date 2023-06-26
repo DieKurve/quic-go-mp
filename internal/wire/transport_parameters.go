@@ -200,11 +200,11 @@ func (p *TransportParameters) unmarshal(r *bytes.Reader, sentBy protocol.Perspec
 			// if zero or parameter is absent the endpoints MUST fall back to normal QUIC with a single path
 			// if one, both endpoints MUST use non-zero connection IDs
 			// if carrying packet does not contain a non-zero length connection ID, the receiver MUST treat this a connection error of type TRANSPORT_PARAMETER_ERROR and close the connection
-			if err := p.readNumericTransportParameter(r, paramID, int(paramLen)); err != nil {
-				return err
-			}
 			if p.DisableActiveMigration {
 				p.EnableMultipath = 0x0
+			}
+			if err := p.readNumericTransportParameter(r, paramID, int(paramLen)); err != nil {
+				return err
 			}
 		default:
 			_, _ = r.Seek(int64(paramLen), io.SeekCurrent)
@@ -337,11 +337,6 @@ func (p *TransportParameters) readNumericTransportParameter(
 	case maxDatagramFrameSizeParameterID:
 		p.MaxDatagramFrameSize = protocol.ByteCount(val)
 	case enableMultipathIDParameterID:
-		if val == 0x1 && p.OriginalDestinationConnectionID.Len() == 0 {
-			return fmt.Errorf("zero length connection id is not allowed: %d", p.OriginalDestinationConnectionID.Len())
-		} else if val > 0x1 {
-			return fmt.Errorf("unexpected value of enable_multipath: %d", val)
-		}
 		p.EnableMultipath = uint8(val)
 	default:
 		return fmt.Errorf("TransportParameter BUG: transport parameter %d not found", paramID)

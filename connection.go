@@ -560,6 +560,9 @@ func (s *connection) multiPathSetup() {
 	if err != nil {
 		return
 	}
+
+	fmt.Println(s.multipathEnabled)
+	fmt.Println(len(s.paths))
 }
 
 // run the connection main loop
@@ -2314,7 +2317,7 @@ func (s *connection) NextConnection() Connection {
 }
 
 func (s *connection) schedulePathsFrame() {
-	//s.lastPathsFrameSent = time.Now()
+	s.lastPathsFrameSent = time.Now()
 	//s.framer.AddPathsFrameForTransmission(s)
 }
 
