@@ -2,16 +2,16 @@ package quic
 
 import (
 	"errors"
+	"github.com/quic-go/quic-go/internal/flowcontrol"
+	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/logging"
 	"net"
-	"strconv"
 	"time"
 
 	"github.com/quic-go/quic-go/internal/utils"
 )
 
 type pathManager struct {
-	pconnMgr   *pconnManager
 	connection *connection
 
 	handshakeCompleted chan struct{}
@@ -41,7 +41,7 @@ func (pm *pathManager) setup(conn *connection) error {
 		conn:     pm.connection,
 		pathConn: pathConn,
 	}
-	pm.connection.paths[1] = newPath
+	pm.connection.paths[pm.connection.handshakeDestConnID] = newPath
 
 	// With the initial path, get the remoteAddr to create paths accordingly
 	if conn.RemoteAddr() != nil {
