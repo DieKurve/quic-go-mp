@@ -54,33 +54,58 @@ func (pm *pathManager) setup(conn *connection) error {
 	return nil
 }
 
-func (pm *pathManager) createPath(srcAddr net.Addr, destAddr net.Addr) error {
+func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	// First check that the path does not exist yet
-	pm.connection.pathMutex.Lock()
-	defer pm.connection.pathMutex.Unlock()
+	pm.connection.pathLock.Lock()
+	defer pm.connection.pathLock.Unlock()
 	paths := pm.connection.paths
+	// check if path exits already
 	for _, pth := range paths {
 		srcAddrPath := pth.srcAddress.String()
 		destAddrPath := pth.destAddress.String()
-		if srcAddr.String() == srcAddrPath && destAddr.String() == destAddrPath {
-			// Path already exists, so don't create it again
+		if srcAddr == srcAddrPath && destAddr == destAddrPath {
 			pm.connection.logger.Infof("path on %s and %s already exists", srcAddrPath, destAddrPath)
 			return errors.New("path already exists")
 		}
 	}
 	pathID, _ := pm.connection.config.ConnectionIDGenerator.GenerateConnectionID()
 
-	// Build a path from the srcAddr and destAddr
+	udpAddrSrc, _ := net.ResolveUDPAddr("udp", srcAddr)
+	udpAddrDest, _ := net.ResolveUDPAddr("udp", destAddr)
+	conn, _ := net.ListenUDP("udp", udpAddrSrc)
+
+	pathFlow := flowcontrol.NewPathFlowController(
+		protocol.ByteCount(pm.connection.config.InitialConnectionReceiveWindow),
+		protocol.ByteCount(pm.connection.config.MaxConnectionReceiveWindow),
+		pm.connection.onHasConnectionWindowUpdate,
+		func(size protocol.ByteCount) bool {
+			if pm.connection.config.AllowConnectionWindowIncrease == nil {
+				return true
+			}
+			return pm.connection.config.AllowConnectionWindowIncrease(pm.connection, uint64(size))
+		},
+		pm.connection.rttStats,
+		pm.connection.logger,
+	)
+
 	path := &path{
-		pathID:   pathID,
-		conn:     pm.connection,
-		pathConn: newSendPconn(nil, destAddr),
+		pathID:         pathID,
+		conn:           pm.connection,
+		flowController: pathFlow,
 	}
 
-	pm.connection.paths[pm.connection.connIDManager.activeSequenceNumber] = path
-	if pm.connection.logger.Debug() {
-		pm.connection.logger.Debugf("Created path %x on %s to %s", pathID, srcAddr.String(), destAddr.String())
+	if pm.connection.perspective == protocol.PerspectiveClient {
+		path.pathConn = newSendPconn(conn, udpAddrDest)
+	} else {
+		conn, _ := wrapConn(conn)
+		path.pathConn = newSendConn(conn, udpAddrDest, nil)
 	}
+
+	pm.connection.paths[pathID] = path
+	if pm.connection.logger.Debug() {
+		pm.connection.logger.Debugf("Created path %x on %s to %s", pathID, srcAddr, destAddr)
+	}
+	path.setup()
 
 	go path.run()
 	return nil
