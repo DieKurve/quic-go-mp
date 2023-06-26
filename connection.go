@@ -2340,3 +2340,11 @@ func (s *connection) OpenPath() error{
 	}
 	return nil
 }
+
+func (s *connection) AddPath(addr string) error {
+	err := s.OpenPath(addr, s.RemoteAddr().String())
+	if err != nil {
+		return err
+	}
+	return nil
+}
