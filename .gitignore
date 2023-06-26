@@ -15,3 +15,6 @@ fuzzing/*/suppressions
 fuzzing/*/corpus/
 
 gomock_reflect_*/
+
+example_multipath/clab-quic-go-mp
+example_multipath/.containerlab.yml.bak
