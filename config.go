@@ -53,7 +53,7 @@ func populateServerConfig(config *Config) *Config {
 func populateClientConfig(config *Config, createdPacketConn bool) *Config {
 	defaultConnIDLen := protocol.DefaultConnectionIDLength
 	if createdPacketConn {
-		defaultConnIDLen = 0
+		defaultConnIDLen = 1
 	}
 
 	config = populateConfig(config, defaultConnIDLen)
