@@ -1554,12 +1554,6 @@ func (s *connection) handleDatagramFrame(f *wire.DatagramFrame) error {
 }
 
 func (s *connection) handleACKMPFrame(frame *wire.AckMPFrame, encLevel protocol.EncryptionLevel) error {
-	if len(s.paths) != 0 {
-		err := s.paths[frame.DestinationConnectionIDSequenceNumber].handleAckMPFrame(frame, encLevel)
-		if err != nil {
-			return err
-		}
-	}
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAckMP(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
 		return err
