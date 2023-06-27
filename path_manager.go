@@ -27,19 +27,15 @@ func (pm *pathManager) setup(conn *connection) error {
 	pm.runClosed = make(chan struct{}, 1)
 	pm.timer = time.NewTimer(0)
 
-	pm.connection.conn.LocalAddr()
+	pathConn := pm.connection.conn
 
-	pathConn := &sconn{
-		rawConn:    nil,
-		remoteAddr: conn.conn.RemoteAddr(),
-		info:       nil,
-		oob:        nil,
-	}
 	// Set up the first path of the connection with the underlying connection
 	newPath := &path{
 		pathID:   pm.connection.handshakeDestConnID,
 		conn:     pm.connection,
 		pathConn: pathConn,
+		srcAddress: pathConn.LocalAddr(),
+		destAddress: pathConn.RemoteAddr(),
 	}
 	pm.connection.paths[pm.connection.handshakeDestConnID] = newPath
 
