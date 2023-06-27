@@ -1,6 +1,7 @@
 package quic
 
 import (
+	"context"
 	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"net"
 	"sync"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go/internal/ackhandler"
-	"github.com/quic-go/quic-go/internal/congestion"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/utils"
 )
@@ -26,7 +26,9 @@ type path struct {
 	destAddress net.Addr
 
 	// Congestion Control
-	congestionSender congestion.SendAlgorithm
+	//congestionSender congestion.SendAlgorithm
+
+	streamsMap      streamManager
 
 	pathConn sendConn
 
@@ -92,6 +94,13 @@ func (p *path) setup() {
 	// Set path to be available
 	p.status.Store(true)
 
+	p.streamsMap = newStreamsMap(
+		p.conn,
+		p.conn.newFlowController,
+		uint64(p.conn.config.MaxIncomingStreams),
+		uint64(p.conn.config.MaxIncomingUniStreams),
+		p.conn.perspective,
+	)
 }
 
 func (p *path) close() error {
@@ -203,4 +212,30 @@ func (p *path) onRTO(lastSentTime time.Time) bool {
 
 func (p *path) SetLeastUnacked(leastUnacked protocol.PacketNumber) {
 	p.leastUnacked = leastUnacked
+}
+
+// AcceptStream returns the next stream opened by the peer
+func (p *path) AcceptStream(ctx context.Context) (Stream, error) {
+	return p.streamsMap.AcceptStream(ctx)
+}
+
+func (p *path) AcceptUniStream(ctx context.Context) (ReceiveStream, error) {
+	return p.streamsMap.AcceptUniStream(ctx)
+}
+
+// OpenStream opens a stream
+func (p *path) OpenStream() (Stream, error) {
+	return p.streamsMap.OpenStream()
+}
+
+func (p *path) OpenStreamSync(ctx context.Context) (Stream, error) {
+	return p.streamsMap.OpenStreamSync(ctx)
+}
+
+func (p *path) OpenUniStream() (SendStream, error) {
+	return p.streamsMap.OpenUniStream()
+}
+
+func (p *path) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
+	return p.streamsMap.OpenUniStreamSync(ctx)
 }
