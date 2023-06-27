@@ -507,7 +507,7 @@ var newClientConnection = func(
 			s.packer.SetToken(token.data)
 		}
 	}
-	if s.multipathEnabled {
+	if params.EnableMultipath == 1 {
 		s.multiPathSetup()
 	}
 	return s
@@ -555,7 +555,9 @@ func (s *connection) preSetup() {
 }
 
 func (s *connection) multiPathSetup() {
-	s.pathManager = &pathManager{}
+	s.multipathEnabled = true
+	s.paths = map[protocol.ConnectionID]*path{}
+	s.pathManager = &pathManager{connection: s}
 	err := s.pathManager.setup(s)
 	if err != nil {
 		return
