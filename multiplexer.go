@@ -20,6 +20,7 @@ type indexableConn interface {
 
 type multiplexer interface {
 	AddConn(c net.PacketConn, connIDLen int, statelessResetKey *StatelessResetKey, tracer logging.Tracer) (packetHandlerManager, error)
+	AddConnMP(c net.PacketConn, connIDLen int, statelessResetKey *StatelessResetKey, tracer logging.Tracer, address net.Addr) (packetHandlerManager, error)
 	RemoveConn(indexableConn) error
 }
 
@@ -91,6 +92,40 @@ func (m *connMultiplexer) AddConn(
 	}
 	return p.manager, nil
 }
+
+func (m *connMultiplexer) AddConnMP(c net.PacketConn, connIDLen int, statelessResetKey *StatelessResetKey, tracer logging.Tracer, address net.Addr) (packetHandlerManager, error){
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	addr := address
+	connIndex := addr.Network() + " " + addr.String()
+	p, ok := m.conns[connIndex]
+	if !ok {
+		manager, err := m.newPacketHandlerManager(c, connIDLen, statelessResetKey, tracer, m.logger)
+		if err != nil {
+			return nil, err
+		}
+		p = connManager{
+			connIDLen:         connIDLen,
+			statelessResetKey: statelessResetKey,
+			manager:           manager,
+			tracer:            tracer,
+		}
+		m.conns[connIndex] = p
+	} else {
+		if p.connIDLen != connIDLen {
+			return nil, fmt.Errorf("cannot use %d byte connection IDs on a connection that is already using %d byte connction IDs", connIDLen, p.connIDLen)
+		}
+		if statelessResetKey != nil && p.statelessResetKey != statelessResetKey {
+			return nil, fmt.Errorf("cannot use different stateless reset keys on the same packet conn")
+		}
+		if tracer != p.tracer {
+			return nil, fmt.Errorf("cannot use different tracers on the same packet conn")
+		}
+	}
+	return p.manager, nil
+}
+
 
 func (m *connMultiplexer) RemoveConn(c indexableConn) error {
 	m.mutex.Lock()
