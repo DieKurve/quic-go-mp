@@ -562,9 +562,6 @@ func (s *connection) multiPathSetup() {
 	if err != nil {
 		return
 	}
-
-	fmt.Println(s.multipathEnabled)
-	fmt.Println(len(s.paths))
 }
 
 // run the connection main loop
@@ -1573,14 +1570,14 @@ func (s *connection) handleACKMPFrame(frame *wire.AckMPFrame, encLevel protocol.
 }
 
 func (s *connection) handlePathStatusFrame(frame *wire.PathStatusFrame, destID protocol.ConnectionID) error {
-	if frame.PathStatus == 0x1{
+	if frame.PathStatus == 0x1 {
 		s.paths[destID].status.Store(false)
-	}else if frame.PathStatus == 0x2 {
+	} else if frame.PathStatus == 0x2 {
 		s.paths[destID].status.Store(true)
-	}else{
+	} else {
 		return errors.New("invalid path status")
 	}
-		return nil
+	return nil
 }
 
 func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame, pathCID protocol.ConnectionID) error {
@@ -2342,4 +2339,8 @@ func (s *connection) AddPath(addr string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *connection) GetPaths() map[protocol.ConnectionID]*path {
+	return s.paths
 }
