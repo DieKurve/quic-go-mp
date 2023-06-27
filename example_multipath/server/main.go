@@ -25,23 +25,25 @@ func main() {
 }
 
 // Start a server that echos all data on the first stream opened by the client
-func echoServer() error {
+func echoServer() error{
 	listener, err := quic.ListenAddr(addrServer, generateTLSConfig(), nil, 1)
 	if err != nil {
 		return err
 	}
-	conn, err := listener.Accept(context.Background())
-	if err != nil {
-		return err
+	// For loop accept
+	for {
+		conn, err := listener.Accept(context.Background())
+		if err != nil {
+			return err
+		}
+		stream, err := conn.AcceptStream(context.Background())
+		if err != nil {
+			panic(err)
+		}
+		// Echo through the loggingWriter
+		fmt.Print(conn.RemoteAddr().String() + ": ")
+		_, _ = io.Copy(loggingWriter{stream}, stream)
 	}
-	stream, err := conn.AcceptStream(context.Background())
-	if err != nil {
-		panic(err)
-	}
-	// Echo through the loggingWriter
-	fmt.Print(conn.RemoteAddr().String() + ": ")
-	_, err = io.Copy(loggingWriter{stream}, stream)
-	return err
 }
 
 // A wrapper for io.Writer that also logs the message.
