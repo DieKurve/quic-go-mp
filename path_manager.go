@@ -28,14 +28,15 @@ func (pm *pathManager) setup(conn *connection) error {
 	pm.timer = time.NewTimer(0)
 
 	pathConn := pm.connection.conn
-
+	
 	// Set up the first path of the connection with the underlying connection
 	newPath := &path{
-		pathID:   pm.connection.handshakeDestConnID,
-		conn:     pm.connection,
-		pathConn: pathConn,
-		srcAddress: pathConn.LocalAddr(),
+		pathID:      pm.connection.handshakeDestConnID,
+		conn:        pm.connection,
+		pathConn:    pathConn,
+		srcAddress:  pathConn.LocalAddr(),
 		destAddress: pathConn.RemoteAddr(),
+		flowController: conn.connFlowController,
 	}
 	pm.connection.paths[pm.connection.handshakeDestConnID] = newPath
 
@@ -46,6 +47,8 @@ func (pm *pathManager) setup(conn *connection) error {
 			utils.DefaultLogger.Errorf("path manager: encountered error while parsing remote addr: %v", remAddr)
 		}
 	}
+
+	newPath.setup()
 
 	return nil
 }
@@ -66,9 +69,17 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	}
 	pathID, _ := pm.connection.config.ConnectionIDGenerator.GenerateConnectionID()
 
-	udpAddrSrc, _ := net.ResolveUDPAddr("udp", srcAddr)
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		return err
+	}
+
+	_, err = getMultiplexer().AddConn(conn, pm.connection.config.ConnectionIDGenerator.ConnectionIDLen(), pm.connection.config.StatelessResetKey, pm.connection.config.Tracer)
+	if err != nil {
+		return err
+	}
+
 	udpAddrDest, _ := net.ResolveUDPAddr("udp", destAddr)
-	conn, _ := net.ListenUDP("udp", udpAddrSrc)
 
 	pathFlow := flowcontrol.NewPathFlowController(
 		protocol.ByteCount(pm.connection.config.InitialConnectionReceiveWindow),
@@ -95,6 +106,15 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	} else {
 		conn, _ := wrapConn(conn)
 		path.pathConn = newSendConn(conn, udpAddrDest, nil)
+	}
+
+	path.srcAddress, err = net.ResolveIPAddr("ip", srcAddr)
+	if err != nil {
+		return err
+	}
+	path.destAddress, err = net.ResolveUDPAddr("udp", destAddr)
+	if err != nil {
+		return err
 	}
 
 	pm.connection.paths[pathID] = path
