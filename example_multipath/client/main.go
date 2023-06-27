@@ -33,7 +33,6 @@ interfaceLoop:
 				panic(err)
 			}
 			if utils.IsIPv4(ip) {
-				fmt.Println("Added " + ip.String())
 				addresses = append(addresses, ip.String())
 				continue interfaceLoop
 			}
@@ -66,30 +65,36 @@ func clientMain() error {
 	if err != nil {
 		return err
 	}
-	for i := 0; i < len(addresses); i++ {
-		err = conn.AddPath(addresses[i])
-		if err != nil {
-			return err
+	if len(addresses) > 1 {
+		for i := 1; i < len(addresses); i++ {
+			err = conn.AddPath(addresses[i])
+			if err != nil {
+				return err
+			}
+			fmt.Println("Added " + conn.LocalAddr().String())
 		}
 	}
 
-	stream, err := conn.OpenStreamSync(context.Background())
-	if err != nil {
-		return err
-	}
+	paths := conn.GetPaths()
+	for _, path := range paths {
 
-	fmt.Printf("Client: Sending '%s' on %s \n", message, conn.LocalAddr().String())
-	_, err = stream.Write([]byte(message))
-	if err != nil {
-		return err
-	}
+		stream, err := path.OpenStreamSync(context.Background())
+		if err != nil {
+			return err
+		}
 
-	buf := make([]byte, len(message))
-	_, err = io.ReadFull(stream, buf)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Client: Got '%s' from %s \n", buf, conn.RemoteAddr().String())
+		fmt.Printf("Client: Sending '%s' on %s \n", message, conn.LocalAddr().String())
+		_, err = stream.Write([]byte(message))
+		if err != nil {
+			return err
+		}
 
+		buf := make([]byte, len(message))
+		_, err = io.ReadFull(stream, buf)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Client: Got '%s' from %s \n", buf, conn.RemoteAddr().String())
+	}
 	return nil
 }
