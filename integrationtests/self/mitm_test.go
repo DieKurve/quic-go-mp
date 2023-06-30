@@ -39,7 +39,7 @@ var _ = Describe("MITM test", func() {
 				Expect(err).ToNot(HaveOccurred())
 				serverUDPConn, err = net.ListenUDP("udp", addr)
 				Expect(err).ToNot(HaveOccurred())
-				ln, err := quic.Listen(serverUDPConn, getTLSConfig(), serverConfig,0)
+				ln, err := quic.Listen(serverUDPConn, getTLSConfig(), serverConfig, 0)
 				Expect(err).ToNot(HaveOccurred())
 				done := make(chan struct{})
 				go func() {

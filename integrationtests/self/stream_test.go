@@ -33,7 +33,7 @@ var _ = Describe("Bidirectional streams", func() {
 					Versions:           []protocol.VersionNumber{version},
 					MaxIncomingStreams: 0,
 				}
-				server, err = quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(qconf),0)
+				server, err = quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(qconf), 0)
 				Expect(err).ToNot(HaveOccurred())
 				serverAddr = fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port)
 			})

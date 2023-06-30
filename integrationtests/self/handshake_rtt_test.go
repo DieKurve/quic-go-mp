@@ -58,7 +58,7 @@ var _ = Describe("Handshake RTT tests", func() {
 			Skip("Test requires at least 2 supported versions.")
 		}
 		serverConfig.Versions = protocol.SupportedVersions[:1]
-		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig,0)
+		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig, 0)
 		Expect(err).ToNot(HaveOccurred())
 		defer ln.Close()
 
@@ -87,7 +87,7 @@ var _ = Describe("Handshake RTT tests", func() {
 	// 1 RTT for the TLS handshake
 	It("is forward-secure after 2 RTTs", func() {
 		serverConfig.RequireAddressValidation = func(net.Addr) bool { return true }
-		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig,0)
+		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig, 0)
 		Expect(err).ToNot(HaveOccurred())
 		defer ln.Close()
 
@@ -104,7 +104,7 @@ var _ = Describe("Handshake RTT tests", func() {
 	})
 
 	It("establishes a connection in 1 RTT when the server doesn't require a token", func() {
-		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig,0)
+		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig, 0)
 		Expect(err).ToNot(HaveOccurred())
 		defer ln.Close()
 
@@ -122,7 +122,7 @@ var _ = Describe("Handshake RTT tests", func() {
 
 	It("establishes a connection in 2 RTTs if a HelloRetryRequest is performed", func() {
 		serverTLSConfig.CurvePreferences = []tls.CurveID{tls.CurveP384}
-		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig,0)
+		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig, 0)
 		Expect(err).ToNot(HaveOccurred())
 		defer ln.Close()
 
@@ -139,7 +139,7 @@ var _ = Describe("Handshake RTT tests", func() {
 	})
 
 	It("receives the first message from the server after 2 RTTs, when the server uses ListenAddr", func() {
-		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig,0)
+		ln, err := quic.ListenAddr("localhost:0", serverTLSConfig, serverConfig, 0)
 		Expect(err).ToNot(HaveOccurred())
 		go func() {
 			conn, err := ln.Accept(context.Background())

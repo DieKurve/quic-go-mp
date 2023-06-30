@@ -113,7 +113,7 @@ func (c *client) dial(ctx context.Context) error {
 	if c.dialer != nil {
 		conn, err = c.dialer(ctx, c.hostname, c.tlsConf, c.config)
 	} else {
-		conn, err = dialAddr(ctx, c.hostname, c.tlsConf, c.config,0)
+		conn, err = dialAddr(ctx, c.hostname, c.tlsConf, c.config, 0)
 	}
 	if err != nil {
 		return err

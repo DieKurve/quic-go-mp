@@ -48,7 +48,7 @@ func (c *clientSessionCache) Put(sessionKey string, cs *tls.ClientSessionState) 
 
 var _ = Describe("TLS session resumption", func() {
 	It("uses session resumption", func() {
-		server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil,0)
+		server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil, 0)
 		Expect(err).ToNot(HaveOccurred())
 		defer server.Close()
 
@@ -90,7 +90,7 @@ var _ = Describe("TLS session resumption", func() {
 	It("doesn't use session resumption, if the config disables it", func() {
 		sConf := getTLSConfig()
 		sConf.SessionTicketsDisabled = true
-		server, err := quic.ListenAddr("localhost:0", sConf, nil,0)
+		server, err := quic.ListenAddr("localhost:0", sConf, nil, 0)
 		Expect(err).ToNot(HaveOccurred())
 		defer server.Close()
 

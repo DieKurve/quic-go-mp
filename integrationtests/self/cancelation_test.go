@@ -28,7 +28,7 @@ var _ = Describe("Stream Cancellations", func() {
 		runServer := func(data []byte) <-chan int32 {
 			numCanceledStreamsChan := make(chan int32)
 			var err error
-			server, err = quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil),0)
+			server, err = quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil), 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			var canceledCounter int32
@@ -264,7 +264,7 @@ var _ = Describe("Stream Cancellations", func() {
 		}
 
 		It("downloads when the server cancels some streams immediately", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil,0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			var canceledCounter int32
@@ -295,7 +295,7 @@ var _ = Describe("Stream Cancellations", func() {
 		})
 
 		It("downloads when the server cancels some streams after sending some data", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil,0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			var canceledCounter int32
@@ -331,7 +331,7 @@ var _ = Describe("Stream Cancellations", func() {
 
 	Context("canceling both read and write side", func() {
 		It("downloads data when both sides cancel streams immediately", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil,0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			done := make(chan struct{})
@@ -415,7 +415,7 @@ var _ = Describe("Stream Cancellations", func() {
 		})
 
 		It("downloads data when both sides cancel streams after a while", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil,0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), nil, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			done := make(chan struct{})
@@ -513,7 +513,7 @@ var _ = Describe("Stream Cancellations", func() {
 
 	Context("canceling the context", func() {
 		It("downloads data when the receiving peer cancels the context for accepting streams", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil),0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil), 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			go func() {
@@ -585,7 +585,7 @@ var _ = Describe("Stream Cancellations", func() {
 				numStreams         = 15
 				maxIncomingStreams = 5
 			)
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil),0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), getQuicConfig(nil), 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			msg := make(chan struct{}, 1)

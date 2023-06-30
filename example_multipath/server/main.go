@@ -25,7 +25,7 @@ func main() {
 }
 
 // Start a server that echos all data on the first stream opened by the client
-func echoServer() error{
+func echoServer() error {
 	listener, err := quic.ListenAddr(addrServer, generateTLSConfig(), nil, 1)
 	if err != nil {
 		return err

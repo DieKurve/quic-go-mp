@@ -98,7 +98,7 @@ var _ = Describe("Handshake tests", func() {
 	runServer := func(tlsConf *tls.Config) {
 		var err error
 		// start the server
-		server, err = quic.ListenAddr("localhost:0", tlsConf, serverConfig,0)
+		server, err = quic.ListenAddr("localhost:0", tlsConf, serverConfig, 0)
 		Expect(err).ToNot(HaveOccurred())
 
 		go func() {
@@ -201,7 +201,7 @@ var _ = Describe("Handshake tests", func() {
 				defer reset()
 
 				tlsConf := getTLSConfig()
-				ln, err := quic.ListenAddr("localhost:0", tlsConf, serverConfig,0)
+				ln, err := quic.ListenAddr("localhost:0", tlsConf, serverConfig, 0)
 				Expect(err).ToNot(HaveOccurred())
 				defer ln.Close()
 
@@ -360,7 +360,7 @@ var _ = Describe("Handshake tests", func() {
 		BeforeEach(func() {
 			var err error
 			// start the server, but don't call Accept
-			server, err = quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
+			server, err = quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			// prepare a (single) packet conn for dialing to the server
@@ -441,7 +441,7 @@ var _ = Describe("Handshake tests", func() {
 
 	Context("ALPN", func() {
 		It("negotiates an application protocol", func() {
-			ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
+			ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			done := make(chan struct{})
@@ -489,7 +489,7 @@ var _ = Describe("Handshake tests", func() {
 
 	Context("using tokens", func() {
 		It("uses tokens provided in NEW_TOKEN frames", func() {
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			// dial the first connection and receive the token
@@ -540,7 +540,7 @@ var _ = Describe("Handshake tests", func() {
 			serverConfig.RequireAddressValidation = func(net.Addr) bool { return true }
 			serverConfig.MaxRetryTokenAge = time.Nanosecond
 
-			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig,0)
+			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig, 0)
 			Expect(err).ToNot(HaveOccurred())
 			defer server.Close()
 

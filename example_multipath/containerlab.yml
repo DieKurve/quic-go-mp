@@ -25,7 +25,7 @@ topology:
       group: server
 
   links:
-    - endpoints: ["client:eth1","router:e1-1"]
-    - endpoints: ["client:eth2","router:e1-2"]
-    - endpoints: ["client:eth3","router:e1-3"]
-    - endpoints: ["server:eth1","router:e1-4"]
+    - endpoints: [ "client:eth1","router:e1-1" ]
+    - endpoints: [ "client:eth2","router:e1-2" ]
+    - endpoints: [ "client:eth3","router:e1-3" ]
+    - endpoints: [ "server:eth1","router:e1-4" ]

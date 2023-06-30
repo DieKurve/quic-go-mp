@@ -187,11 +187,11 @@ type Connection interface {
 	SendMessage([]byte) error
 	// ReceiveMessage gets a message received in a datagram, as specified in RFC 9221.
 	ReceiveMessage() ([]byte, error)
-  AddPath(addr string) error
+	AddPath(addr string) error
 	GetPaths() map[protocol.ConnectionID]*path
 }
 
-type Path interface{
+type Path interface {
 	// AcceptStream returns the next stream opened by the peer, blocking until one is available.
 	// If the connection was closed due to a timeout, the error satisfies
 	// the net.Error interface, and Timeout() will be true.

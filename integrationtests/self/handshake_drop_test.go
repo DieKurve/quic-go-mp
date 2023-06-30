@@ -53,7 +53,7 @@ var _ = Describe("Handshake drop tests", func() {
 			tlsConf = getTLSConfig()
 		}
 		var err error
-		ln, err = quic.ListenAddr("localhost:0", tlsConf, conf,0)
+		ln, err = quic.ListenAddr("localhost:0", tlsConf, conf, 0)
 		Expect(err).ToNot(HaveOccurred())
 		serverPort := ln.Addr().(*net.UDPAddr).Port
 		proxy, err = quicproxy.NewQuicProxy("localhost:0", &quicproxy.Opts{

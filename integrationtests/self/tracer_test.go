@@ -64,7 +64,7 @@ var _ = Describe("Handshake tests", func() {
 			serverChan := make(chan quic.Listener)
 			go func() {
 				defer GinkgoRecover()
-				ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), quicServerConf,0)
+				ln, err := quic.ListenAddr("localhost:0", getTLSConfig(), quicServerConf, 0)
 				Expect(err).ToNot(HaveOccurred())
 				serverChan <- ln
 				conn, err := ln.Accept(context.Background())
