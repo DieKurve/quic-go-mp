@@ -233,3 +233,6 @@ func (p *path) OpenUniStream() (SendStream, error) {
 func (p *path) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
 	return p.streamsMap.OpenUniStreamSync(ctx)
 }
+func (p *path) GetPathID() string {
+	return p.pathID.String()
+}

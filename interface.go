@@ -230,6 +230,8 @@ type Path interface {
 	SendMessage([]byte) error
 	// ReceiveMessage gets a message received in a datagram, as specified in RFC 9221.
 	ReceiveMessage() ([]byte, error)
+	// GetPathID returns the path id as string
+	GetPathID() string
 }
 
 // An EarlyConnection is a connection that is handshaking.
