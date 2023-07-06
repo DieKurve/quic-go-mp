@@ -3,6 +3,8 @@ package quic
 import (
 	"context"
 	"github.com/quic-go/quic-go/internal/flowcontrol"
+	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/quic-go/quic-go/logging"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -179,10 +181,6 @@ func (p *path) idleTimeout() time.Duration {
 	return time.Second
 }
 
-func (p *path) handlePacketImpl(rp *receivedPacket) bool {
-	return p.conn.handlePacketImpl(rp)
-}
-
 func (p *path) closeLocal(e error) {
 	p.conn.closeOnce.Do(func() {
 		if e == nil {
@@ -233,6 +231,102 @@ func (p *path) OpenUniStream() (SendStream, error) {
 func (p *path) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
 	return p.streamsMap.OpenUniStreamSync(ctx)
 }
+
+func (p *path) handlePacketImpl(rp *receivedPacket) bool {
+	if !p.status.Load() {
+		// Path is closed, ignore packet
+		return false
+	}
+	if wire.IsVersionNegotiationPacket(rp.data) {
+		p.conn.handleVersionNegotiationPacket(rp)
+		return false
+	}
+
+	if !rp.rcvTime.IsZero() {
+		p.lastNetworkActivityTime = rp.rcvTime
+	}
+
+	var counter uint8
+	var lastConnID protocol.ConnectionID
+	var processed bool
+	data := rp.data
+	pkt := rp
+	for len(data) > 0 {
+		var destConnID protocol.ConnectionID
+		if counter > 0 {
+			pkt = pkt.Clone()
+			pkt.data = data
+
+			var err error
+			destConnID, err = wire.ParseConnectionID(pkt.data, p.pathID.Len())
+			if err != nil {
+				if p.conn.tracer != nil {
+					p.conn.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.ByteCount(len(data)), logging.PacketDropHeaderParseError)
+				}
+				p.conn.logger.Debugf("error parsing packet, couldn't parse connection ID: %s", err)
+				break
+			}
+			if destConnID != lastConnID {
+				if p.conn.tracer != nil {
+					p.conn.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.ByteCount(len(data)), logging.PacketDropUnknownConnectionID)
+				}
+				p.conn.logger.Debugf("coalesced packet has different destination connection ID: %s, expected %s", destConnID, lastConnID)
+				break
+			}
+		}
+
+		if wire.IsLongHeaderPacket(pkt.data[0]) {
+			hdr, packetData, rest, err := wire.ParsePacket(pkt.data)
+			if err != nil {
+				if p.conn.tracer != nil {
+					dropReason := logging.PacketDropHeaderParseError
+					if err == wire.ErrUnsupportedVersion {
+						dropReason = logging.PacketDropUnsupportedVersion
+					}
+					p.conn.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.ByteCount(len(data)), dropReason)
+				}
+				p.conn.logger.Debugf("error parsing packet: %s", err)
+				break
+			}
+			lastConnID = hdr.DestConnectionID
+
+			if hdr.Version != p.conn.version {
+				if p.conn.tracer != nil {
+					p.conn.tracer.DroppedPacket(logging.PacketTypeFromHeader(hdr), protocol.ByteCount(len(data)), logging.PacketDropUnexpectedVersion)
+				}
+				p.conn.logger.Debugf("Dropping packet with version %x. Expected %x.", hdr.Version, p.conn.version)
+				break
+			}
+
+			if counter > 0 {
+				pkt.buffer.Split()
+			}
+			counter++
+
+			// only log if this actually a coalesced packet
+			if p.conn.logger.Debug() && (counter > 1 || len(rest) > 0) {
+				p.conn.logger.Debugf("Parsed a coalesced packet. Part %d: %d bytes. Remaining: %d bytes.", counter, len(packetData), len(rest))
+			}
+
+			pkt.data = packetData
+
+			if wasProcessed := p.conn.handleLongHeaderPacket(pkt, hdr); wasProcessed {
+				processed = true
+			}
+			data = rest
+		} else {
+			if counter > 0 {
+				pkt.buffer.Split()
+			}
+			processed = p.conn.handleShortHeaderPacket(pkt, destConnID)
+			break
+		}
+	}
+
+	pkt.buffer.MaybeRelease()
+	return processed
+}
+
 func (p *path) GetPathID() string {
 	return p.pathID.String()
 }
