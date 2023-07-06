@@ -93,7 +93,7 @@ func (m *connMultiplexer) AddConn(
 	return p.manager, nil
 }
 
-func (m *connMultiplexer) AddConnMP(c net.PacketConn, connIDLen int, statelessResetKey *StatelessResetKey, tracer logging.Tracer, address net.Addr) (packetHandlerManager, error){
+func (m *connMultiplexer) AddConnMP(c net.PacketConn, connIDLen int, statelessResetKey *StatelessResetKey, tracer logging.Tracer, address net.Addr) (packetHandlerManager, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
