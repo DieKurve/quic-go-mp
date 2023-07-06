@@ -66,18 +66,23 @@ func clientMain() error {
 		return err
 	}
 	if len(addresses) > 1 {
-		for i := 1; i < len(addresses); i++ {
+		for i := 0; i < len(addresses); i++ {
 			err = conn.AddPath(addresses[i])
 			if err != nil {
 				return err
 			}
-			fmt.Println("Added " + conn.LocalAddr().String())
+		}
+	} else {
+		err = conn.AddPath(addresses[0])
+		if err != nil {
+			return err
 		}
 	}
 
 	paths := conn.GetPaths()
 	for _, path := range paths {
 
+		fmt.Printf("open stream on path %s\n", path.GetPathID())
 		stream, err := path.OpenStreamSync(context.Background())
 		if err != nil {
 			return err
