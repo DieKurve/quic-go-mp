@@ -94,13 +94,7 @@ func (p *path) setup() {
 	// Set path to be available
 	p.status.Store(true)
 
-	p.streamsMap = newStreamsMap(
-		p.conn,
-		p.conn.newFlowController,
-		uint64(p.conn.config.MaxIncomingStreams),
-		uint64(p.conn.config.MaxIncomingUniStreams),
-		p.conn.perspective,
-	)
+	p.streamsMap = p.conn.streamsMap
 }
 
 func (p *path) close() error {
