@@ -155,18 +155,18 @@ func (p *path) idleTimeoutStartTime() time.Time {
 }
 
 func (p *path) maybeResetTimer() {
-	//deadline := p.lastNetworkActivityTime.Add(p.idleTimeout())
+	deadline := p.lastNetworkActivityTime.Add(p.idleTimeout())
 
 	if ackAlarm := p.receivedPacketHandler.GetAlarmTimeout(); !ackAlarm.IsZero() {
-		//deadline = ackAlarm
+		deadline = ackAlarm
 	}
 	if lossTime := p.receivedPacketHandler.GetAlarmTimeout(); !lossTime.IsZero() {
-		//deadline = utils.MinTime(deadline, lossTime)
+		deadline = utils.MinTime(deadline, lossTime)
 	}
 
-	//deadline = utils.MinTime(utils.MaxTime(deadline, time.Now().Add(10*time.Millisecond)), time.Now().Add(1*time.Second))
+	deadline = utils.MinTime(utils.MaxTime(deadline, time.Now().Add(10*time.Millisecond)), time.Now().Add(1*time.Second))
 
-	//p.timer.Reset(deadline)
+	p.timer.Reset(deadline)
 }
 
 func (p *path) idleTimeout() time.Duration {
@@ -195,8 +195,6 @@ func (p *path) closeLocal(e error) {
 func (p *path) onRTO(lastSentTime time.Time) bool {
 	// Was there any activity since last sent packet?
 	if p.lastNetworkActivityTime.Before(lastSentTime) {
-		//p.potentiallyFailed.Store(true)
-		p.conn.schedulePathsFrame()
 		return true
 	}
 	return false
