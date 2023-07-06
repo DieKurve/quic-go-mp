@@ -7,8 +7,6 @@ import (
 	"github.com/quic-go/quic-go/logging"
 	"net"
 	"time"
-
-	"github.com/quic-go/quic-go/internal/utils"
 )
 
 type pathManager struct {
@@ -21,38 +19,16 @@ type pathManager struct {
 	logger logging.ConnectionTracer
 }
 
-func (pm *pathManager) setup(conn *connection) error {
-
+func (pm *pathManager) setup() error {
 	pm.handshakeCompleted = make(chan struct{}, 1)
 	pm.runClosed = make(chan struct{}, 1)
 	pm.timer = time.NewTimer(0)
-
-	pathConn := pm.connection.conn
-	
-	// Set up the first path of the connection with the underlying connection
-	newPath := &path{
-		pathID:      pm.connection.handshakeDestConnID,
-		conn:        pm.connection,
-		pathConn:    pathConn,
-		srcAddress:  pathConn.LocalAddr(),
-		destAddress: pathConn.RemoteAddr(),
-		flowController: conn.connFlowController,
-	}
-	pm.connection.paths[pm.connection.handshakeDestConnID] = newPath
-
-	// With the initial path, get the remoteAddr to create paths accordingly
-	if conn.RemoteAddr() != nil {
-		remAddr, err := net.ResolveUDPAddr("udp", conn.RemoteAddr().String())
-		if err != nil {
-			utils.DefaultLogger.Errorf("path manager: encountered error while parsing remote addr: %v", remAddr)
-		}
-	}
-
-	newPath.setup()
-
 	return nil
 }
 
+/*
+createPath creates a new Path from the Source IP Address and the Destination IP Address
+*/
 func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	// First check that the path does not exist yet
 	pm.connection.pathLock.Lock()
