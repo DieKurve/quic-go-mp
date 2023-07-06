@@ -28,7 +28,7 @@ type path struct {
 	// Congestion Control
 	//congestionSender congestion.SendAlgorithm
 
-	streamsMap      streamManager
+	streamsMap streamManager
 
 	pathConn sendConn
 

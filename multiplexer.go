@@ -126,7 +126,6 @@ func (m *connMultiplexer) AddConnMP(c net.PacketConn, connIDLen int, statelessRe
 	return p.manager, nil
 }
 
-
 func (m *connMultiplexer) RemoveConn(c indexableConn) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()

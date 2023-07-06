@@ -68,7 +68,6 @@ func (m *outgoingStreamsMap[T]) OpenStream() (T, error) {
 func (m *outgoingStreamsMap[T]) OpenStreamSync(ctx context.Context) (T, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-
 	if m.closeErr != nil {
 		return *new(T), m.closeErr
 	}

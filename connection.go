@@ -235,8 +235,6 @@ type connection struct {
 	lastPathsFrameSent time.Time
 }
 
-
-
 var (
 	_ Connection      = &connection{}
 	_ EarlyConnection = &connection{}
