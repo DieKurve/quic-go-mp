@@ -2313,13 +2313,8 @@ func (s *connection) NextConnection() Connection {
 	return s
 }
 
-func (s *connection) schedulePathsFrame() {
-	s.lastPathsFrameSent = time.Now()
-	//s.framer.AddPathsFrameForTransmission(s)
-}
-
-func (s *connection) OpenPath(srcAddr string, destAddr string) error {
-
+// openPath opens a new Path with the given IP Addresses
+func (s *connection) openPath(srcAddr string, destAddr string) error {
 	// Check if maximum amount of paths is reached
 	if len(s.paths) >= protocol.MaxActiveConnectionIDs {
 		return errors.New("no additional path can be created, a path has to be retired")
@@ -2332,7 +2327,7 @@ func (s *connection) OpenPath(srcAddr string, destAddr string) error {
 }
 
 func (s *connection) AddPath(addr string) error {
-	err := s.OpenPath(addr, s.RemoteAddr().String())
+	err := s.openPath(addr, s.RemoteAddr().String())
 	if err != nil {
 		return err
 	}
