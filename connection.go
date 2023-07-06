@@ -364,6 +364,9 @@ var newConnection = func(
 		s.version,
 	)
 
+	if multiPath == 0x1 {
+		s.multipathEnabled = true
+	}
 	s.cryptoStreamHandler = cs
 	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
@@ -507,6 +510,16 @@ var newClientConnection = func(
 	}
 	if params.EnableMultipath == 1 {
 		s.multiPathSetup()
+		s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
+			0,
+			getMaxPacketSize(s.conn.RemoteAddr()),
+			s.rttStats,
+			false,
+			s.perspective,
+			s.tracer,
+			s.logger,
+		)
+		s.receivedPacketHandler = nil
 	}
 	return s
 }
@@ -556,7 +569,7 @@ func (s *connection) multiPathSetup() {
 	s.multipathEnabled = true
 	s.paths = map[protocol.ConnectionID]*path{}
 	s.pathManager = &pathManager{connection: s}
-	err := s.pathManager.setup(s)
+	err := s.pathManager.setup()
 	if err != nil {
 		return
 	}
@@ -786,12 +799,22 @@ func (s *connection) maybeResetTimer() {
 		}
 	}
 
-	s.timer.SetTimer(
-		deadline,
-		s.receivedPacketHandler.GetAlarmTimeout(),
-		s.sentPacketHandler.GetLossDetectionTimeout(),
-		s.pacingDeadline,
-	)
+	if s.multipathEnabled {
+		s.timer.SetTimer(
+			deadline,
+			s.receivedPacketHandlerMP.GetAlarmTimeout(),
+			s.sentPacketHandler.GetLossDetectionTimeout(),
+			s.pacingDeadline,
+		)
+	} else {
+
+		s.timer.SetTimer(
+			deadline,
+			s.receivedPacketHandler.GetAlarmTimeout(),
+			s.sentPacketHandler.GetLossDetectionTimeout(),
+			s.pacingDeadline,
+		)
+	}
 }
 
 func (s *connection) idleTimeoutStartTime() time.Time {
@@ -969,7 +992,7 @@ func (s *connection) handleShortHeaderPacket(p *receivedPacket, destConnID proto
 		wire.LogShortHeader(s.logger, destConnID, pn, pnLen, keyPhase)
 	}
 
-	if s.receivedPacketHandler.IsPotentiallyDuplicate(pn, protocol.Encryption1RTT) {
+	if s.receivedPacketHandlerMP.IsPotentiallyDuplicate(pn, protocol.Encryption1RTT) {
 		s.logger.Debugf("Dropping (potentially) duplicate packet.")
 		if s.tracer != nil {
 			s.tracer.DroppedPacket(logging.PacketType1RTT, p.Size(), logging.PacketDropDuplicate)
@@ -1041,7 +1064,7 @@ func (s *connection) handleLongHeaderPacket(p *receivedPacket, hdr *wire.Header)
 		packet.hdr.Log(s.logger)
 	}
 
-	if s.receivedPacketHandler.IsPotentiallyDuplicate(packet.hdr.PacketNumber, packet.encryptionLevel) {
+	if s.receivedPacketHandlerMP.IsPotentiallyDuplicate(packet.hdr.PacketNumber, packet.encryptionLevel) {
 		s.logger.Debugf("Dropping (potentially) duplicate packet.")
 		if s.tracer != nil {
 			s.tracer.DroppedPacket(logging.PacketTypeFromHeader(hdr), p.Size(), logging.PacketDropDuplicate)
@@ -1272,7 +1295,7 @@ func (s *connection) handleUnpackedLongHeaderPacket(
 	if err != nil {
 		return err
 	}
-	return s.receivedPacketHandler.ReceivedPacket(packet.hdr.PacketNumber, ecn, packet.encryptionLevel, rcvTime, isAckEliciting)
+	return s.receivedPacketHandlerMP.ReceivedPacket(packet.hdr.PacketNumber, ecn, packet.encryptionLevel, rcvTime, isAckEliciting)
 }
 
 func (s *connection) handleUnpackedShortHeaderPacket(
@@ -1291,7 +1314,7 @@ func (s *connection) handleUnpackedShortHeaderPacket(
 	if err != nil {
 		return err
 	}
-	return s.receivedPacketHandler.ReceivedPacket(pn, ecn, protocol.Encryption1RTT, rcvTime, isAckEliciting)
+	return s.receivedPacketHandlerMP.ReceivedPacket(pn, ecn, protocol.Encryption1RTT, rcvTime, isAckEliciting)
 }
 
 func (s *connection) handleFrames(
@@ -1718,7 +1741,7 @@ func (s *connection) handleCloseError(closeErr *closeError) {
 
 func (s *connection) dropEncryptionLevel(encLevel protocol.EncryptionLevel) {
 	s.sentPacketHandler.DropPackets(encLevel)
-	s.receivedPacketHandler.DropPackets(encLevel)
+	s.receivedPacketHandlerMP.DropPackets(encLevel)
 	if s.tracer != nil {
 		s.tracer.DroppedEncryptionLevel(encLevel)
 	}
