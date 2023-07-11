@@ -8,9 +8,12 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/internal/utils"
 	"io"
+	"log"
+	"math"
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 const message = "foobar"
@@ -27,8 +30,8 @@ interfaceLoop:
 		if err != nil {
 			panic(err)
 		}
-		for _, a := range address {
-			ip, _, err := net.ParseCIDR(a.String())
+		for _, currentAddress := range address {
+			ip, _, err := net.ParseCIDR(currentAddress.String())
 			if err != nil {
 				panic(err)
 			}
@@ -81,25 +84,35 @@ func clientMain() error {
 
 	paths := conn.GetPaths()
 	for _, path := range paths {
-
-		fmt.Printf("open stream on path %s\n", path.GetPathID())
-		stream, err := path.OpenStreamSync(context.Background())
+		log.Printf("Open stream on path %s\n", path.GetPathID())
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		stream, err := path.OpenStreamSync(ctx)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Client: Sending '%s' on %s \n", message, conn.LocalAddr().String())
+		log.Printf("Sending '%s' on %s \n", message, path.LocalAddr().String())
 		_, err = stream.Write([]byte(message))
 		if err != nil {
 			return err
 		}
 
-		buf := make([]byte, len(message))
-		_, err = io.ReadFull(stream, buf)
+		buf := make([]byte, math.MaxInt8)
+		_, err = io.ReadAtLeast(stream, buf, 1)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Client: Got '%s' from %s \n", buf, conn.RemoteAddr().String())
+
+		log.Printf("Got '%s' from %s\n", buf, path.RemoteAddr().String())
+		if err != nil {
+			return err
+		}
+
+		err = stream.Close()
+		if err != nil {
+			return err
+		}
+
 	}
 	return nil
 }

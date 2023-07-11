@@ -7,13 +7,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
+	"errors"
 	"github.com/quic-go/quic-go"
 	"io"
+	"log"
+	"math"
 	"math/big"
+	"os"
 )
-
-const addrServer = "localhost:1337"
 
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
@@ -26,32 +27,63 @@ func main() {
 
 // Start a server that echos all data on the first stream opened by the client
 func echoServer() error {
-	listener, err := quic.ListenAddr(addrServer, generateTLSConfig(), nil, 1)
+	if len(os.Args) <= 1 {
+		return errors.New("no server address given as parameter")
+	}
+	serverAddress := os.Args[1] + ":1337"
+
+	listener, err := quic.ListenAddr(serverAddress, generateTLSConfig(), nil, 1)
+	log.Printf("Start Listening on %s", serverAddress)
 	if err != nil {
 		return err
 	}
-	// For loop accept
+
+	conn, err := listener.Accept(context.Background())
+	if err != nil {
+		return err
+	}
+	// for loop AcceptStream
 	for {
-		conn, err := listener.Accept(context.Background())
-		if err != nil {
-			return err
-		}
 		stream, err := conn.AcceptStream(context.Background())
 		if err != nil {
 			panic(err)
 		}
-		// Echo through the loggingWriter
-		fmt.Print(conn.RemoteAddr().String() + ": ")
-		_, _ = io.Copy(loggingWriter{stream}, stream)
+		log.Printf("Got connection from %s", conn.RemoteAddr())
+
+		buf := make([]byte, math.MaxInt8)
+		_, err = readerOutput{stream}.Read(buf)
+		if err != nil {
+			return err
+		}
+		log.Printf("Server got: %s from %s", string(buf), conn.RemoteAddr().String())
+
+		var outputBuf []byte
+		for i := 0; i < len(buf); i++ {
+			if buf[i] == 0 {
+				break
+			} else {
+				outputBuf = append(outputBuf, buf[i])
+			}
+		}
+
+		_, err = stream.Write(outputBuf)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("Send: '%s' to %s", string(outputBuf), conn.RemoteAddr())
+		err = stream.Close()
+		if err != nil {
+			return err
+		}
 	}
 }
 
-// A wrapper for io.Writer that also logs the message.
-type loggingWriter struct{ io.Writer }
+// Reader for output of content of stream
+type readerOutput struct{ io.Reader }
 
-func (w loggingWriter) Write(b []byte) (int, error) {
-	fmt.Printf("Got '%s'\n", string(b))
-	return w.Writer.Write(b)
+func (r readerOutput) Read(b []byte) (int, error) {
+	return r.Reader.Read(b)
 }
 
 // Set up a bare-bones TLS config for the server
