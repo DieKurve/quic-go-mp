@@ -328,3 +328,11 @@ func (p *path) handlePacketImpl(rp *receivedPacket) bool {
 func (p *path) GetPathID() string {
 	return p.pathID.String()
 }
+
+func (p *path) LocalAddr() net.Addr {
+	return p.srcAddress
+}
+
+func (p *path) RemoteAddr() net.Addr {
+	return p.destAddress
+}
