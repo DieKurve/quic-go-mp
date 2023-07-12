@@ -888,9 +888,8 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 	s.sentPacketHandler.ReceivedBytes(rp.Size())
 	if len(s.paths) > 0 {
 		for _, currentPath := range s.paths {
-			log.Printf(currentPath.destAddress.String())
-			log.Printf(rp.remoteAddr.String())
-			if currentPath.destAddress == rp.remoteAddr {
+			if currentPath.destAddress.String() == rp.remoteAddr.String() {
+				log.Printf("Using path method")
 				return currentPath.handlePacketImpl(rp)
 			}
 		}
