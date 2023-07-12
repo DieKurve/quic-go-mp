@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"reflect"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -886,9 +885,7 @@ func (s *connection) handleHandshakeConfirmed() {
 }
 
 func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
-	log.Printf(rp.remoteAddr.String())
 	s.sentPacketHandler.ReceivedBytes(rp.Size())
-	log.Printf(strconv.Itoa(len(s.paths)))
 	if len(s.paths) > 0 {
 		for _, currentPath := range s.paths {
 			log.Printf(currentPath.destAddress.String())
