@@ -5,6 +5,7 @@ import (
 	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"github.com/quic-go/quic-go/internal/wire"
 	"github.com/quic-go/quic-go/logging"
+	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -231,6 +232,10 @@ func (p *path) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
 }
 
 func (p *path) handlePacketImpl(rp *receivedPacket) bool {
+
+	log.Printf("Path")
+	log.Printf(rp.remoteAddr.String())
+
 	if !p.status.Load() {
 		// Path is closed, ignore packet
 		return false

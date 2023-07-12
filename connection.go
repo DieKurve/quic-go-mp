@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -884,7 +886,32 @@ func (s *connection) handleHandshakeConfirmed() {
 }
 
 func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
+	log.Printf(rp.remoteAddr.String())
 	s.sentPacketHandler.ReceivedBytes(rp.Size())
+	log.Printf(strconv.Itoa(len(s.paths)))
+	if len(s.paths) > 0 {
+		for _, currentPath := range s.paths {
+			if currentPath.srcAddress == rp.remoteAddr {
+				return currentPath.handlePacketImpl(rp)
+			}
+		}
+	}
+	//	newPath, err := s.pathManager.createPathServer(rp)
+	//	if err != nil {
+	//		return false
+	//	}
+	//	return newPath.handlePacketImpl(rp)
+	//}else {
+	//	for _, currentPath := range s.paths {
+	//		if currentPath.destAddress != rp.remoteAddr {
+	//			newPath, err := s.pathManager.createPathServer(rp)
+	//			if err != nil {
+	//				return false
+	//			}
+	//			return newPath.handlePacketImpl(rp)
+	//		}
+	//	}
+	//}
 
 	if wire.IsVersionNegotiationPacket(rp.data) {
 		s.handleVersionNegotiationPacket(rp)

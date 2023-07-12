@@ -103,6 +103,19 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	return nil
 }
 
+func (pm *pathManager) createPathServer(rp *receivedPacket) (*path, error) {
+	err := pm.createPath(pm.connection.LocalAddr().String(), rp.remoteAddr.String())
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range pm.connection.paths{
+		if rp.remoteAddr == path.RemoteAddr(){
+			return path, nil
+		}
+	}
+	return nil ,nil
+}
+
 // closes the path with the given connection id and deletes it from the path map in connection
 func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {
 	pm.connection.pathLock.RLock()
