@@ -886,30 +886,16 @@ func (s *connection) handleHandshakeConfirmed() {
 
 func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 	s.sentPacketHandler.ReceivedBytes(rp.Size())
+
 	if len(s.paths) > 0 {
 		for _, currentPath := range s.paths {
 			if currentPath.destAddress.String() == rp.remoteAddr.String() {
-				log.Printf("Using path method")
 				return currentPath.handlePacketImpl(rp)
 			}
 		}
 	}
-	//	newPath, err := s.pathManager.createPathServer(rp)
-	//	if err != nil {
-	//		return false
-	//	}
-	//	return newPath.handlePacketImpl(rp)
-	//}else {
-	//	for _, currentPath := range s.paths {
-	//		if currentPath.destAddress != rp.remoteAddr {
-	//			newPath, err := s.pathManager.createPathServer(rp)
-	//			if err != nil {
-	//				return false
-	//			}
-	//			return newPath.handlePacketImpl(rp)
-	//		}
-	//	}
-	//}
+
+	log.Printf(rp.remoteAddr.String())
 
 	if wire.IsVersionNegotiationPacket(rp.data) {
 		s.handleVersionNegotiationPacket(rp)
