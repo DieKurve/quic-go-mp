@@ -113,7 +113,7 @@ func parseAckMPFrame(r *bytes.Reader, typ uint64, ackDelayExponent uint8, _ prot
 	return frame, nil
 }
 
-// Append appends an ACK frame.
+// Append appends an ACK_MP frame.
 func (f *AckMPFrame) Append(b []byte, _ protocol.VersionNumber) ([]byte, error) {
 	hasECN := f.ECT0 > 0 || f.ECT1 > 0 || f.ECNCE > 0
 	if hasECN {
@@ -125,7 +125,7 @@ func (f *AckMPFrame) Append(b []byte, _ protocol.VersionNumber) ([]byte, error) 
 	b = quicvarint.Append(b, f.DestinationConnectionIDSequenceNumber)
 
 	b = quicvarint.Append(b, uint64(f.LargestAcked()))
-	b = quicvarint.Append(b, encodeAckDelay(f.DelayTime))
+	b = quicvarint.Append(b, encodeMPAckDelay(f.DelayTime))
 
 	numRanges := f.numEncodableAckRanges()
 	b = quicvarint.Append(b, uint64(numRanges-1))
@@ -154,7 +154,7 @@ func (f *AckMPFrame) Length(_ protocol.VersionNumber) protocol.ByteCount {
 	largestAcked := f.AckRanges[0].Largest
 	numRanges := f.numEncodableAckRanges()
 
-	length := 4 + quicvarint.Len(uint64(largestAcked)) + quicvarint.Len(f.DestinationConnectionIDSequenceNumber) + quicvarint.Len(encodeAckDelay(f.DelayTime))
+	length := 4 + quicvarint.Len(uint64(largestAcked)) + quicvarint.Len(f.DestinationConnectionIDSequenceNumber) + quicvarint.Len(encodeMPAckDelay(f.DelayTime))
 
 	length += quicvarint.Len(uint64(numRanges - 1))
 	lowestInFirstRange := f.AckRanges[0].Smallest
@@ -176,7 +176,7 @@ func (f *AckMPFrame) Length(_ protocol.VersionNumber) protocol.ByteCount {
 // gets the number of ACK ranges that can be encoded
 // such that the resulting frame is smaller than the maximum ACK frame size
 func (f *AckMPFrame) numEncodableAckRanges() int {
-	length := 1 + quicvarint.Len(uint64(f.LargestAcked())) + quicvarint.Len(encodeAckDelay(f.DelayTime))
+	length := 1 + quicvarint.Len(uint64(f.LargestAcked())) + quicvarint.Len(encodeMPAckDelay(f.DelayTime))
 	length += 2 // assume that the number of ranges will consume 2 bytes
 	for i := 1; i < len(f.AckRanges); i++ {
 		gap, len := f.encodeAckRange(i)
