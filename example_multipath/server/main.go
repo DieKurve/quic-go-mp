@@ -38,43 +38,59 @@ func echoServer() error {
 		return err
 	}
 
-	conn, err := listener.Accept(context.Background())
-	if err != nil {
-		return err
-	}
-	// for loop AcceptStream
+	errorChan := make(chan error, 1)
+
 	for {
-		stream, err := conn.AcceptStream(context.Background())
-		if err != nil {
-			panic(err)
-		}
-		log.Printf("Got connection from %s", conn.RemoteAddr())
-
-		buf := make([]byte, math.MaxInt8)
-		_, err = readerOutput{stream}.Read(buf)
+		conn, err := listener.Accept(context.Background())
 		if err != nil {
 			return err
 		}
-		log.Printf("Server got: %s from %s", string(buf), conn.RemoteAddr().String())
+		// for loop AcceptStream
+		go func() {
+			for {
+				stream, err := conn.AcceptStream(context.Background())
+				if err != nil {
+					errorChan <- err
+					break
+				}
+				log.Printf("Got connection from %s", conn.RemoteAddr())
 
-		var outputBuf []byte
-		for i := 0; i < len(buf); i++ {
-			if buf[i] == 0 {
-				break
-			} else {
-				outputBuf = append(outputBuf, buf[i])
-			}
-		}
+				buf := make([]byte, math.MaxInt8)
+				_, err = readerOutput{stream}.Read(buf)
+				if err != nil {
+					errorChan <- err
+					break
+				}
+				log.Printf("Server got: %s from %s", string(buf), conn.RemoteAddr().String())
 
-		_, err = stream.Write(outputBuf)
-		if err != nil {
-			return err
-		}
+				var outputBuf []byte
+				for i := 0; i < len(buf); i++ {
+					if buf[i] == 0 {
+						break
+					} else {
+						outputBuf = append(outputBuf, buf[i])
+					}
+				}
 
-		log.Printf("Send: '%s' to %s", string(outputBuf), conn.RemoteAddr())
-		err = stream.Close()
-		if err != nil {
-			return err
+				_, err = stream.Write(outputBuf)
+				if err != nil {
+					errorChan <- err
+					break
+				}
+
+				log.Printf("Send: '%s' to %s", string(outputBuf), conn.RemoteAddr())
+				err = stream.Close()
+				if err != nil {
+					errorChan <- err
+					break
+				}}
+		}()
+		select {
+		case sendError := <- errorChan:
+			log.Printf(sendError.Error())
+			break
+		default:
+			continue
 		}
 	}
 }

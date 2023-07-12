@@ -85,7 +85,8 @@ func clientMain() error {
 	paths := conn.GetPaths()
 	for _, path := range paths {
 		log.Printf("Open stream on path %s\n", path.GetPathID())
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		stream, err := path.OpenStreamSync(ctx)
 		if err != nil {
 			return err
