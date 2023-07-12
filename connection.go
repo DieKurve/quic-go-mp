@@ -891,6 +891,8 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 	log.Printf(strconv.Itoa(len(s.paths)))
 	if len(s.paths) > 0 {
 		for _, currentPath := range s.paths {
+			log.Printf(currentPath.srcAddress.String())
+			log.Printf(rp.remoteAddr.String())
 			if currentPath.srcAddress == rp.remoteAddr {
 				return currentPath.handlePacketImpl(rp)
 			}
