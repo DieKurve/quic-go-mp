@@ -882,6 +882,7 @@ func (s *connection) handleHandshakeConfirmed() {
 			},
 		)
 	}
+	log.Printf("Finished handshake")
 }
 
 func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
@@ -894,8 +895,6 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 			}
 		}
 	}
-
-	log.Printf(rp.remoteAddr.String())
 
 	if wire.IsVersionNegotiationPacket(rp.data) {
 		s.handleVersionNegotiationPacket(rp)
@@ -932,6 +931,7 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 
 		if wire.IsLongHeaderPacket(p.data[0]) {
 			hdr, packetData, rest, err := wire.ParsePacket(p.data)
+			log.Printf("Type: %s from %s", hdr.PacketType(), rp.remoteAddr.String())
 			if err != nil {
 				if s.tracer != nil {
 					dropReason := logging.PacketDropHeaderParseError
@@ -1406,7 +1406,7 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 		s.handlePathChallengeFrame(frame)
 	case *wire.PathResponseFrame:
 		// since we don't send PATH_CHALLENGEs, we don't expect PATH_RESPONSEs
-		err = errors.New("unexpected PATH_RESPONSE frame")
+		err = s.handlePathResponeFrame(frame)
 	case *wire.NewTokenFrame:
 		err = s.handleNewTokenFrame(frame)
 	case *wire.NewConnectionIDFrame:
@@ -1632,6 +1632,16 @@ func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame, pathCI
 		FrameType:    frame.FrameType,
 	}
 
+}
+
+func (s *connection) handlePathResponeFrame(frame *wire.PathResponseFrame) error {
+	/*if frame.Data != pathChallengeData{
+		return &qerr.TransportError{
+			ErrorCode: qerr.ProtocolViolation,
+			ErrorMessage: "PATH_RESPONSE data is not equal to PATH_CHALLENGE data",
+		}
+	}*/
+	return nil
 }
 
 // closeLocal closes the connection and send a CONNECTION_CLOSE containing the error
@@ -2350,8 +2360,13 @@ func (s *connection) NextConnection() Connection {
 // openPath opens a new Path with the given IP Addresses
 func (s *connection) openPath(srcAddr string, destAddr string) error {
 	// Check if maximum amount of paths is reached
-	if len(s.paths) >= protocol.MaxActiveConnectionIDs {
+	if len(s.paths) >= protocol.MaxActiveConnectionIDs{
 		return errors.New("no additional path can be created, a path has to be retired")
+	}
+	for {
+		if s.handshakeComplete {
+			break
+		}
 	}
 	err := s.pathManager.createPath(srcAddr, destAddr)
 	if err != nil {
@@ -2371,3 +2386,4 @@ func (s *connection) AddPath(addr string) error {
 func (s *connection) GetPaths() map[protocol.ConnectionID]*path {
 	return s.paths
 }
+

@@ -12,7 +12,6 @@ import (
 type pathManager struct {
 	connection *connection
 
-	handshakeCompleted chan struct{}
 	runClosed          chan struct{}
 	timer              *time.Timer
 
@@ -20,9 +19,9 @@ type pathManager struct {
 }
 
 func (pm *pathManager) setup() error {
-	pm.handshakeCompleted = make(chan struct{}, 1)
 	pm.runClosed = make(chan struct{}, 1)
 	pm.timer = time.NewTimer(0)
+
 	return nil
 }
 
@@ -45,7 +44,7 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	}
 	pathID, _ := pm.connection.config.ConnectionIDGenerator.GenerateConnectionID()
 
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(srcAddr), Port: 0})
 	if err != nil {
 		return err
 	}
@@ -71,35 +70,36 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 		pm.connection.logger,
 	)
 
-	path := &path{
+	newPath := &path{
 		pathID:         pathID,
 		conn:           pm.connection,
 		flowController: pathFlow,
 	}
 
 	if pm.connection.perspective == protocol.PerspectiveClient {
-		path.pathConn = newSendPconn(conn, udpAddrDest)
+		newPath.pathConn = newSendPconn(conn, udpAddrDest)
 	} else {
 		conn, _ := wrapConn(conn)
-		path.pathConn = newSendConn(conn, udpAddrDest, nil)
+		newPath.pathConn = newSendConn(conn, udpAddrDest, nil)
 	}
 
-	path.srcAddress, err = net.ResolveIPAddr("ip", srcAddr)
+	// Wird das benötigt? CID identifiziert und nicht die IP-Adressen?
+	newPath.srcAddress, err = net.ResolveIPAddr("ip", srcAddr)
 	if err != nil {
 		return err
 	}
-	path.destAddress, err = net.ResolveUDPAddr("udp", destAddr)
+	newPath.destAddress, err = net.ResolveUDPAddr("udp", destAddr)
 	if err != nil {
 		return err
 	}
 
-	pm.connection.paths[pathID] = path
+	pm.connection.paths[pathID] = newPath
 	if pm.connection.logger.Debug() {
 		pm.connection.logger.Debugf("Created path %x on %s to %s", pathID, srcAddr, destAddr)
 	}
-	path.setup()
+	newPath.setup()
 
-	go path.run()
+	go newPath.run()
 	return nil
 }
 
