@@ -234,6 +234,8 @@ type connection struct {
 	tracer             logging.ConnectionTracer
 	logger             utils.Logger
 	lastPathsFrameSent time.Time
+
+	tlsconfig *tls.Config
 }
 
 var (
@@ -494,6 +496,7 @@ var newClientConnection = func(
 		logger,
 		s.version,
 	)
+	s.tlsconfig = tlsConf
 	s.clientHelloWritten = clientHelloWritten
 	s.cryptoStreamHandler = cs
 	s.cryptoStreamManager = newCryptoStreamManager(cs, initialStream, handshakeStream, newCryptoStream())
@@ -2358,8 +2361,9 @@ func (s *connection) NextConnection() Connection {
 }
 
 // openPath opens a new Path with the given IP Addresses
-func (s *connection) openPath(srcAddr string, destAddr string) error {
+func (s *connection) openPath(srcAddr string, destAddr string, tlsconfig *tls.Config) error {
 	// Check if maximum amount of paths is reached
+	log.Printf("Starting a new path to %s (%s -> %s)", destAddr, srcAddr, destAddr)
 	if len(s.paths) >= protocol.MaxActiveConnectionIDs{
 		return errors.New("no additional path can be created, a path has to be retired")
 	}
@@ -2368,15 +2372,15 @@ func (s *connection) openPath(srcAddr string, destAddr string) error {
 			break
 		}
 	}
-	err := s.pathManager.createPath(srcAddr, destAddr)
+	err := s.pathManager.createPath(srcAddr, destAddr, tlsconfig)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *connection) AddPath(addr string) error {
-	err := s.openPath(addr, s.RemoteAddr().String())
+func (s *connection) AddPath(addr string, tlsconfig *tls.Config) error {
+	err := s.openPath(addr, s.RemoteAddr().String(), tlsconfig)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package quic
 
 import (
+	"crypto/tls"
 	"errors"
 	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"github.com/quic-go/quic-go/internal/protocol"
@@ -28,7 +29,7 @@ func (pm *pathManager) setup() error {
 /*
 createPath creates a new Path from the Source IP Address and the Destination IP Address
 */
-func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
+func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tls.Config) error {
 	// First check that the path does not exist yet
 	pm.connection.pathLock.Lock()
 	defer pm.connection.pathLock.Unlock()
@@ -103,7 +104,7 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string) error {
 	return nil
 }
 
-func (pm *pathManager) createPathServer(rp *receivedPacket) (*path, error) {
+/*func (pm *pathManager) createPathServer(rp *receivedPacket) (*path, error) {
 	err := pm.createPath(pm.connection.LocalAddr().String(), rp.remoteAddr.String())
 	if err != nil {
 		return nil, err
@@ -114,7 +115,7 @@ func (pm *pathManager) createPathServer(rp *receivedPacket) (*path, error) {
 		}
 	}
 	return nil ,nil
-}
+}*/
 
 // closes the path with the given connection id and deletes it from the path map in connection
 func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {

@@ -70,13 +70,13 @@ func clientMain() error {
 	}
 	if len(addresses) > 1 {
 		for i := 0; i < len(addresses); i++ {
-			err = conn.AddPath(addresses[i])
+			err = conn.AddPath(addresses[i], tlsConf)
 			if err != nil {
 				return err
 			}
 		}
 	} else {
-		err = conn.AddPath(addresses[0])
+		err = conn.AddPath(addresses[0], tlsConf)
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func clientMain() error {
 
 	paths := conn.GetPaths()
 	for _, path := range paths {
-		log.Printf("Open stream on path %s\n", path.GetPathID())
+		log.Printf("Opening stream on path %s\n", path.GetPathID())
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		stream, err := path.OpenStreamSync(ctx)
@@ -93,7 +93,8 @@ func clientMain() error {
 		}
 
 		log.Printf("Sending '%s' on %s \n", message, path.LocalAddr().String())
-		_, err = stream.Write([]byte(message))
+		bytesWritten, err := stream.Write([]byte(message))
+		log.Printf("%d Bytes Written", bytesWritten)
 		if err != nil {
 			return err
 		}
