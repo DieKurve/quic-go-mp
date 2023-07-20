@@ -44,8 +44,8 @@ type (
 	StreamsBlockedFrame = wire.StreamsBlockedFrame
 	// A StreamDataBlockedFrame is a STREAM_DATA_BLOCKED frame.
 	StreamDataBlockedFrame = wire.StreamDataBlockedFrame
-	// An AckMpFrame is an ACK_MP frame
-	AckMpFrame = wire.AckMPFrame
+	// An AckMPFrame is an ACK_MP frame
+	AckMPFrame = wire.AckMPFrame
 	// A PathAbandonFrame is a PATH_ABANDON frame
 	PathAbandonFrame = wire.PathAbandonFrame
 	// A PathStatusFrame is a PATH_STATUS frame
