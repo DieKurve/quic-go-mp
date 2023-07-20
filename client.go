@@ -112,7 +112,6 @@ func dialAddrContext(
 	if err != nil {
 		return nil, err
 	}
-	// This host (first ip address and network interface of the system?)
 	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
 		return nil, err
