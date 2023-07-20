@@ -196,44 +196,6 @@ type Connection interface {
 
 // A Path is part of a QUIC connection between two peers
 type Path interface {
-	// AcceptStream returns the next stream opened by the peer, blocking until one is available.
-	// If the connection was closed due to a timeout, the error satisfies
-	// the net.Error interface, and Timeout() will be true.
-	AcceptStream(context.Context) (Stream, error)
-	// AcceptUniStream returns the next unidirectional stream opened by the peer, blocking until one is available.
-	// If the connection was closed due to a timeout, the error satisfies
-	// the net.Error interface, and Timeout() will be true.
-	AcceptUniStream(context.Context) (ReceiveStream, error)
-	// OpenStream opens a new bidirectional QUIC stream.
-	// There is no signaling to the peer about new streams:
-	// The peer can only accept the stream after data has been sent on the stream.
-	// If the error is non-nil, it satisfies the net.Error interface.
-	// When reaching the peer's stream limit, err.Temporary() will be true.
-	// If the connection was closed due to a timeout, Timeout() will be true.
-	OpenStream() (Stream, error)
-	// OpenStreamSync opens a new bidirectional QUIC stream.
-	// It blocks until a new stream can be opened.
-	// If the error is non-nil, it satisfies the net.Error interface.
-	// If the connection was closed due to a timeout, Timeout() will be true.
-	OpenStreamSync(context.Context) (Stream, error)
-	// OpenUniStream opens a new outgoing unidirectional QUIC stream.
-	// If the error is non-nil, it satisfies the net.Error interface.
-	// When reaching the peer's stream limit, Temporary() will be true.
-	// If the connection was closed due to a timeout, Timeout() will be true.
-	OpenUniStream() (SendStream, error)
-	// OpenUniStreamSync opens a new outgoing unidirectional QUIC stream.
-	// It blocks until a new stream can be opened.
-	// If the error is non-nil, it satisfies the net.Error interface.
-	// If the connection was closed due to a timeout, Timeout() will be true.
-	OpenUniStreamSync(context.Context) (SendStream, error)
-	// LocalAddr returns the local address.
-	LocalAddr() net.Addr
-	// RemoteAddr returns the address of the peer.
-	RemoteAddr() net.Addr
-	// SendMessage sends a message as a datagram, as specified in RFC 9221.
-	SendMessage([]byte) error
-	// ReceiveMessage gets a message received in a datagram, as specified in RFC 9221.
-	ReceiveMessage() ([]byte, error)
 	// GetPathID returns the path id as string
 	GetPathID() string
 }
