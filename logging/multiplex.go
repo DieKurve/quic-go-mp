@@ -110,9 +110,21 @@ func (m *connTracerMultiplexer) SentLongHeaderPacket(hdr *ExtendedHeader, size B
 	}
 }
 
+func (m *connTracerMultiplexer) SentLongHeaderPacketMP(hdr *ExtendedHeader, size ByteCount, ack *AckMPFrame, frames []Frame) {
+	for _, t := range m.tracers {
+		t.SentLongHeaderPacketMP(hdr, size, ack, frames)
+	}
+}
+
 func (m *connTracerMultiplexer) SentShortHeaderPacket(hdr *ShortHeader, size ByteCount, ack *AckFrame, frames []Frame) {
 	for _, t := range m.tracers {
 		t.SentShortHeaderPacket(hdr, size, ack, frames)
+	}
+}
+
+func (m *connTracerMultiplexer) SentShortHeaderPacketMP(hdr *ShortHeader, size ByteCount, ack *AckMPFrame, frames []Frame) {
+	for _, t := range m.tracers {
+		t.SentShortHeaderPacketMP(hdr, size, ack, frames)
 	}
 }
 
