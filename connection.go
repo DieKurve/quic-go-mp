@@ -170,6 +170,7 @@ type connection struct {
 	unpacker      unpacker
 	frameParser   wire.FrameParser
 	packer        packer
+	packerMP      packerMP
 	mtuDiscoverer mtuDiscoverer // initialized when the handshake completes
 
 	oneRTTStream        cryptoStream // only set for the server
@@ -376,19 +377,27 @@ var newConnection = func(
 	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
 	s.cryptoStreamManager = newCryptoStreamManager(cs, initialStream, handshakeStream, s.oneRTTStream)
-	//TODO Check if needed here
 	if s.multipathEnabled {
-		s.multiPathSetup()
+		s.multipathEnabled = true
+		s.paths = map[protocol.ConnectionID]*path{}
+
+		s.pathManager = &pathManager{connection: s}
+		err := s.pathManager.setup()
+		if err != nil {
+			return nil
+		}
 		s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
 			0,
 			getMaxPacketSize(s.conn.RemoteAddr()),
 			s.rttStats,
-			clientAddressValidated,
+			false,
 			s.perspective,
 			s.tracer,
 			s.logger,
 		)
-		s.receivedPacketHandler = nil
+		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)
+		//s.receivedPacketHandler = nil
+		//s.packer = nil
 	}
 	s.pathChallenge = [8]byte{1,3,3,7}
 	return s
@@ -516,7 +525,13 @@ var newClientConnection = func(
 		}
 	}
 	if params.EnableMultipath == 1 {
-		s.multiPathSetup()
+		s.multipathEnabled = true
+		s.paths = map[protocol.ConnectionID]*path{}
+		s.pathManager = &pathManager{connection: s}
+		err := s.pathManager.setup()
+		if err != nil {
+			return nil
+		}
 		s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
 			0,
 			getMaxPacketSize(s.conn.RemoteAddr()),
@@ -526,7 +541,9 @@ var newClientConnection = func(
 			s.tracer,
 			s.logger,
 		)
-		s.receivedPacketHandler = nil
+		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)
+		//s.receivedPacketHandler = nil
+		//s.packer = nil
 	}
 	s.pathChallenge = [8]byte{1,3,3,7}
 	return s
@@ -571,16 +588,6 @@ func (s *connection) preSetup() {
 	s.windowUpdateQueue = newWindowUpdateQueue(s.streamsMap, s.connFlowController, s.framer.QueueControlFrame)
 	s.datagramQueue = newDatagramQueue(s.scheduleSending, s.logger)
 	s.connState.Version = s.version
-}
-
-func (s *connection) multiPathSetup() {
-	s.multipathEnabled = true
-	s.paths = map[protocol.ConnectionID]*path{}
-	s.pathManager = &pathManager{connection: s}
-	err := s.pathManager.setup()
-	if err != nil {
-		return
-	}
 }
 
 // run the connection main loop
