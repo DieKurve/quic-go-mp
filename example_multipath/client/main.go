@@ -93,8 +93,7 @@ func clientMain() error {
 		}
 
 		log.Printf("Sending '%s' on %s \n", message, path.LocalAddr().String())
-		bytesWritten, err := stream.Write([]byte(message))
-		log.Printf("%d Bytes Written", bytesWritten)
+		_, err = stream.Write([]byte(message))
 		if err != nil {
 			return err
 		}

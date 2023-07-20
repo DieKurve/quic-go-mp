@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -220,6 +221,7 @@ func listen(conn net.PacketConn, tlsConf *tls.Config, config *Config, acceptEarl
 	}
 	go s.run()
 	connHandler.SetServer(s)
+	log.Printf("Listening for %s connections on %s", conn.LocalAddr().Network(), conn.LocalAddr().String())
 	s.logger.Debugf("Listening for %s connections on %s", conn.LocalAddr().Network(), conn.LocalAddr().String())
 	return s, nil
 }
