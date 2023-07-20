@@ -86,7 +86,7 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tl
 
 	// Wird das benötigt? CID identifiziert und nicht die IP-Adressen?
 	newPath.srcAddress, err = net.ResolveIPAddr("ip", srcAddr)
-	if err != nil {
+	newPath.pathChallenge = [8]byte{1,3,3,7}
 		return err
 	}
 	newPath.destAddress, err = net.ResolveUDPAddr("udp", destAddr)

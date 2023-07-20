@@ -236,6 +236,8 @@ type connection struct {
 	lastPathsFrameSent time.Time
 
 	tlsconfig *tls.Config
+
+	pathChallenge [8]byte
 }
 
 var (
@@ -388,6 +390,7 @@ var newConnection = func(
 		)
 		s.receivedPacketHandler = nil
 	}
+	s.pathChallenge = [8]byte{1,3,3,7}
 	return s
 }
 
@@ -525,6 +528,7 @@ var newClientConnection = func(
 		)
 		s.receivedPacketHandler = nil
 	}
+	s.pathChallenge = [8]byte{1,3,3,7}
 	return s
 }
 
@@ -1408,7 +1412,6 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 	case *wire.PathChallengeFrame:
 		s.handlePathChallengeFrame(frame)
 	case *wire.PathResponseFrame:
-		// since we don't send PATH_CHALLENGEs, we don't expect PATH_RESPONSEs
 		err = s.handlePathResponeFrame(frame)
 	case *wire.NewTokenFrame:
 		err = s.handleNewTokenFrame(frame)
@@ -2390,4 +2393,3 @@ func (s *connection) AddPath(addr string, tlsconfig *tls.Config) error {
 func (s *connection) GetPaths() map[protocol.ConnectionID]*path {
 	return s.paths
 }
-

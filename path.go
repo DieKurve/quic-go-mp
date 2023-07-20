@@ -79,7 +79,7 @@ type path struct {
 	handshakeCtx       context.Context
 	handshakeCtxCancel context.CancelFunc
 
-	windowUpdateQueue   *windowUpdateQueue
+	pathChallenge [8]byte
 	datagramQueue       *datagramQueue
 	receivedPackets     chan *receivedPacket
 	sendingScheduled    chan struct{}
