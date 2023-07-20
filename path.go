@@ -292,32 +292,6 @@ func (p *path) closeLocal(e error) {
 	})
 }
 
-// AcceptStream returns the next stream opened by the peer
-func (p *path) AcceptStream(ctx context.Context) (Stream, error) {
-	return p.streamsMap.AcceptStream(ctx)
-}
-
-func (p *path) AcceptUniStream(ctx context.Context) (ReceiveStream, error) {
-	return p.streamsMap.AcceptUniStream(ctx)
-}
-
-// OpenStream opens a stream
-func (p *path) OpenStream() (Stream, error) {
-	return p.streamsMap.OpenStream()
-}
-
-func (p *path) OpenStreamSync(ctx context.Context) (Stream, error) {
-	return p.streamsMap.OpenStreamSync(ctx)
-}
-
-func (p *path) OpenUniStream() (SendStream, error) {
-	return p.streamsMap.OpenUniStream()
-}
-
-func (p *path) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
-	return p.streamsMap.OpenUniStreamSync(ctx)
-}
-
 func (p *path) handlePacketImpl(rp *receivedPacket) bool {
 
 	if !p.status.Load() {
