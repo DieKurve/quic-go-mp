@@ -25,6 +25,11 @@ import (
 	"github.com/quic-go/quic-go/logging"
 )
 
+const (
+	available = iota + 1
+	standby
+)
+
 type unpacker interface {
 	UnpackLongHeader(hdr *wire.Header, rcvTime time.Time, data []byte, v protocol.VersionNumber) (*unpackedPacket, error)
 	UnpackShortHeader(rcvTime time.Time, data []byte) (protocol.PacketNumber, protocol.PacketNumberLen, protocol.KeyPhaseBit, []byte, error)
@@ -1625,9 +1630,9 @@ func (s *connection) handleACKMPFrame(frame *wire.AckMPFrame, encLevel protocol.
 }
 
 func (s *connection) handlePathStatusFrame(frame *wire.PathStatusFrame, destID protocol.ConnectionID) error {
-	if frame.PathStatus == 0x1 {
+	if frame.PathStatus == available {
 		s.paths[destID].status.Store(false)
-	} else if frame.PathStatus == 0x2 {
+	} else if frame.PathStatus == standby {
 		s.paths[destID].status.Store(true)
 	} else {
 		return errors.New("invalid path status")
