@@ -3,9 +3,10 @@ package quic
 import (
 	"crypto/tls"
 	"errors"
-	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"github.com/quic-go/quic-go/internal/protocol"
+	"github.com/quic-go/quic-go/internal/wire"
 	"github.com/quic-go/quic-go/logging"
+	"log"
 	"net"
 	"time"
 )
@@ -13,15 +14,30 @@ import (
 type pathManager struct {
 	connection *connection
 
-	runClosed          chan struct{}
-	timer              *time.Timer
+	paths uint8
+
+	runClosed chan struct{}
+	timer     *time.Timer
 
 	logger logging.ConnectionTracer
+
+	destinationAddrs []*net.UDPAddr
+
+	// Handshaking
+	handshakeCompleteChan chan struct{}
+	handshakeComplete     bool
+	handshakeConfirmed    bool
 }
 
 func (pm *pathManager) setup() error {
 	pm.runClosed = make(chan struct{}, 1)
 	pm.timer = time.NewTimer(0)
+
+	pm.handshakeCompleteChan = make(chan struct{}, 1)
+
+	pm.paths = 0
+
+	go pm.run()
 
 	return nil
 }
@@ -34,30 +50,33 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tl
 	pm.connection.pathLock.Lock()
 	defer pm.connection.pathLock.Unlock()
 	paths := pm.connection.paths
-	// check if path exits already
+	// check if path exists already
 	for _, pth := range paths {
-		srcAddrPath := pth.srcAddress.String()
-		destAddrPath := pth.destAddress.String()
+		srcAddrPath := pth.pathConn.LocalAddr().String()
+		destAddrPath := pth.pathConn.RemoteAddr().String()
 		if srcAddr == srcAddrPath && destAddr == destAddrPath {
 			pm.connection.logger.Infof("path on %s and %s already exists", srcAddrPath, destAddrPath)
 			return errors.New("path already exists")
 		}
 	}
-	pathID, _ := pm.connection.config.ConnectionIDGenerator.GenerateConnectionID()
 
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(srcAddr), Port: 0})
 	if err != nil {
 		return err
 	}
 
-	_, err = getMultiplexer().AddConn(conn, pm.connection.config.ConnectionIDGenerator.ConnectionIDLen(), pm.connection.config.StatelessResetKey, pm.connection.config.Tracer)
+	pathPacketHandler, err := getMultiplexer().AddConn(conn, pm.connection.config.ConnectionIDGenerator.ConnectionIDLen(), pm.connection.config.StatelessResetKey, pm.connection.config.Tracer)
 	if err != nil {
 		return err
 	}
 
-	udpAddrDest, _ := net.ResolveUDPAddr("udp", destAddr)
+	udpAddrDest, err := net.ResolveUDPAddr("udp", pm.connection.conn.RemoteAddr().String())
+	if err != nil {
+		return err
+	}
+	pm.destinationAddrs = append(pm.destinationAddrs, udpAddrDest)
 
-	pathFlow := flowcontrol.NewPathFlowController(
+	/*pathFlow := flowcontrol.NewPathFlowController(
 		protocol.ByteCount(pm.connection.config.InitialConnectionReceiveWindow),
 		protocol.ByteCount(pm.connection.config.MaxConnectionReceiveWindow),
 		pm.connection.onHasConnectionWindowUpdate,
@@ -69,65 +88,65 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tl
 		},
 		pm.connection.rttStats,
 		pm.connection.logger,
-	)
+	)*/
+
+	pathID, _ := pm.connection.config.ConnectionIDGenerator.GenerateConnectionID()
 
 	newPath := &path{
-		pathID:         pathID,
-		conn:           pm.connection,
-		flowController: pathFlow,
+		pathID: pathID,
+		conn:   pm.connection,
 	}
+
+	pathPacketHandler.Add(pathID, newPath.conn)
 
 	if pm.connection.perspective == protocol.PerspectiveClient {
 		newPath.pathConn = newSendPconn(conn, udpAddrDest)
 	} else {
-		conn, _ := wrapConn(conn)
-		newPath.pathConn = newSendConn(conn, udpAddrDest, nil)
+		pconn, _ := wrapConn(conn)
+		newPath.pathConn = newSendConn(pconn, udpAddrDest, nil)
 	}
 
-	// Wird das benötigt? CID identifiziert und nicht die IP-Adressen?
-	newPath.srcAddress, err = net.ResolveIPAddr("ip", srcAddr)
+	newPath.setup()
+
 	newPath.pathChallenge = [8]byte{1,3,3,7}
-		return err
-	}
-	newPath.destAddress, err = net.ResolveUDPAddr("udp", destAddr)
-	if err != nil {
-		return err
-	}
+	pm.connection.queueControlFrame(&wire.PathChallengeFrame{Data: newPath.pathChallenge})
 
 	pm.connection.paths[pathID] = newPath
+	log.Printf("Created path %x on %s to %s", pathID, srcAddr, destAddr)
 	if pm.connection.logger.Debug() {
 		pm.connection.logger.Debugf("Created path %x on %s to %s", pathID, srcAddr, destAddr)
 	}
-	newPath.setup()
 
-	go newPath.run()
 	return nil
 }
 
-/*func (pm *pathManager) createPathServer(rp *receivedPacket) (*path, error) {
-	err := pm.createPath(pm.connection.LocalAddr().String(), rp.remoteAddr.String())
-	if err != nil {
-		return nil, err
-	}
-	for _, path := range pm.connection.paths{
-		if rp.remoteAddr == path.RemoteAddr(){
+func (pm *pathManager) createPathServer(rp *receivedPacket) (*path, error) {
+	// check if path is already exists
+	for _, path := range pm.connection.paths {
+		if rp.remoteAddr == path.RemoteAddr() {
 			return path, nil
 		}
 	}
-	return nil ,nil
-}*/
+	// create path from receivedPacket remote address
+	err := pm.createPath(pm.connection.LocalAddr().String(), rp.remoteAddr.String(), pm.connection.tlsconfig)
+	if err != nil {
+		return nil, err
+	}
+	pm.paths++
+	return nil, nil
+}
 
 // closes the path with the given connection id and deletes it from the path map in connection
-func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {
+func (pm *pathManager) closePath(pathID protocol.ConnectionID) error {
 	pm.connection.pathLock.RLock()
 	defer pm.connection.pathLock.RUnlock()
 
-	pth, ok := pm.connection.paths[pthID]
+	pth, ok := pm.connection.paths[pathID]
 	if !ok {
 		if pm.connection.logger.Debug() {
-			pm.connection.logger.Debugf("no path with connection id: %i", pthID)
+			pm.connection.logger.Debugf("no path with connection id: %i", pathID)
 		}
-		return errors.New("no path with connection id: " + pthID.String())
+		return errors.New("no path with connection id: " + pathID.String())
 	}
 
 	err := pth.close()
@@ -136,6 +155,45 @@ func (pm *pathManager) closePath(pthID protocol.ConnectionID) error {
 	}
 
 	// Delete path if all packets are either acknowledged or dropped
-	delete(pm.connection.paths, pthID)
+
+	delete(pm.connection.paths, pathID)
+	pm.paths--
 	return nil
+}
+
+func (pm *pathManager) closeAllPaths() error {
+	pm.connection.pathLock.RLock()
+	defer pm.connection.pathLock.RUnlock()
+	for pathID := range pm.connection.paths {
+		err := pm.connection.paths[pathID].close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pm *pathManager) createPathFromRemote(p *receivedPacket) error {
+	pm.connection.pathLock.Lock()
+	defer pm.connection.pathLock.Unlock()
+	err := pm.createPath(p.remoteAddr.String(), "", nil)
+	if err != nil{
+		return err
+	}
+	return nil
+}
+
+func (pm *pathManager) run() {
+runLoop:
+	for {
+		select {
+		case <-pm.runClosed:
+			break runLoop
+		}
+	}
+	// Close all paths
+	err := pm.closeAllPaths()
+	if err != nil {
+		return
+	}
 }

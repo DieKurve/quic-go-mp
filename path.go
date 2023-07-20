@@ -2,18 +2,27 @@ package quic
 
 import (
 	"context"
-	"github.com/quic-go/quic-go/internal/flowcontrol"
-	"github.com/quic-go/quic-go/internal/handshake"
+	"errors"
+	"fmt"
+	"github.com/quic-go/quic-go/internal/qerr"
 	"github.com/quic-go/quic-go/internal/wire"
 	"github.com/quic-go/quic-go/logging"
 	"log"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/quic-go/quic-go/internal/ackhandler"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/utils"
+)
+
+const (
+	validating = iota
+		active
+		closing
+		closed
 )
 
 // Path is network path for redundancy and resiliance
@@ -26,27 +35,20 @@ type path struct {
 	// Current connection on which the path runs
 	conn *connection
 
-	// IP-Address of client
-	srcAddress net.Addr
-	// IP-Address of peer
-	destAddress net.Addr
-
-	ctxCancel context.CancelFunc
-
 	// Congestion Control
 	//congestionSender congestion.SendAlgorithm
 
-	//pathPacketNumberSpace *packetNumberSpace
-
 	streamsMap streamManager
 
+	// sendConn for the current path
 	pathConn sendConn
 
 	rttStats *utils.RTTStats
 
 	// Flowcontroller for the packets send on this path
-	flowController flowcontrol.PathFlowController
+	//flowController flowcontrol.PathFlowController
 
+	// Handler for receiving and sending Packets on this path
 	sentPacketHandler     ackhandler.SentPacketHandler
 	receivedPacketHandler ackhandler.ReceivedMPPacketHandler
 
@@ -55,7 +57,7 @@ type path struct {
 	// False if path is in standby
 	status atomic.Bool
 
-	//closeOnce sync.Once
+	closeOnce sync.Once
 
 	// closeChan is used to notify the run loop that it should terminate
 	closeChan chan closeError
@@ -65,142 +67,64 @@ type path struct {
 	// Signals if the path gets terminated
 	runClosed chan struct{}
 
-	sendQueue sender
-
-	framer framer
-
 	leastUnacked protocol.PacketNumber
-
-	lastPacketReceivedTime time.Time
 
 	// Timer for timeouts and time stuff
 	timer connectionTimer
 
 	handshakeCtx       context.Context
 	handshakeCtxCancel context.CancelFunc
+	ctxCancel          context.CancelFunc
+	// The idle timeout is set based on the max of the time we received the last packet...
+	lastPacketReceivedTime time.Time
+	// ... and the time we sent a new ack-eliciting packet after receiving a packet.
+	firstAckElicitingPacketAfterIdleSentTime time.Time
+	creationTime                             time.Time
 
 	pathChallenge [8]byte
-	datagramQueue       *datagramQueue
-	receivedPackets     chan *receivedPacket
-	sendingScheduled    chan struct{}
-	retransmissionQueue *retransmissionQueue
-	frameParser         wire.FrameParser
 
-	// pacingDeadline is the time when the next packet should be sent
-	pacingDeadline time.Time
+	pathStatus uint8
+
 }
-
-func (p *path) queueControlFrame(f wire.Frame) {
-	p.framer.QueueControlFrame(f)
-	p.scheduleSending()
-}
-
-func (p *path) onHasStreamData(id protocol.StreamID) {
-	p.framer.AddActiveStream(id)
-	p.scheduleSending()
-}
-
-func (p *path) onStreamCompleted(id protocol.StreamID) {
-	if err := p.streamsMap.DeleteStream(id); err != nil {
-		p.closeLocal(err)
-	}
-}
-
-var (
-	_ streamSender = &path{}
-)
 
 // setup initializes values that are independent of the perspective
 func (p *path) setup() {
-	p.sendQueue = newSendQueue(p.pathConn)
-	p.retransmissionQueue = newRetransmissionQueue()
-	p.frameParser = wire.NewFrameParser(p.conn.config.EnableDatagrams)
+	p.pathStatus = validating
 	p.rttStats = &utils.RTTStats{}
-	p.flowController = flowcontrol.NewPathFlowController(
-		protocol.ByteCount(p.conn.config.InitialConnectionReceiveWindow),
-		protocol.ByteCount(p.conn.config.MaxConnectionReceiveWindow),
-		p.conn.onHasConnectionWindowUpdate,
-		func(size protocol.ByteCount) bool {
-			if p.conn.config.AllowConnectionWindowIncrease == nil {
-				return true
-			}
-			return p.conn.config.AllowConnectionWindowIncrease(p.conn, uint64(size))
-		},
-		p.rttStats,
-		p.conn.logger,
-	)
 
-	// Eigene StreamsMap für jeden Path oder eine für jeden Path?
-	//p.streamsMap = p.conn.streamsMap
-	p.streamsMap = newStreamsMap(p,
-		p.newFlowController,
-		uint64(p.conn.config.MaxIncomingStreams),
-		uint64(p.conn.config.MaxIncomingUniStreams),
-		p.conn.perspective,
-	)
-	p.streamsMap.UpdateLimits(p.conn.peerParams)
+	p.closeChan = make(chan closeError, 1)
+
+
+	now := time.Now()
+	p.lastPacketReceivedTime = now
+	p.creationTime = now
 
 	// Create Channels
 	p.runClosed = make(chan struct{}, 1)
 	p.sentPacket = make(chan struct{}, 1)
 
-	p.framer = newFramer(p.streamsMap)
-	p.receivedPackets = make(chan *receivedPacket, protocol.MaxConnUnprocessedPackets)
-	p.closeChan = make(chan closeError, 1)
-	p.sendingScheduled = make(chan struct{}, 1)
-
-
-
-	p.windowUpdateQueue = newWindowUpdateQueue(p.streamsMap, p.flowController, p.framer.QueueControlFrame)
-	p.datagramQueue = newDatagramQueue(p.scheduleSending, p.conn.logger)
-
-	// Initialise Timer
+	// Initialize Timer
 	p.lastPacketReceivedTime = time.Now()
-
-	p.windowUpdateQueue = newWindowUpdateQueue(p.streamsMap, p.flowController, p.framer.QueueControlFrame)
-	p.datagramQueue = newDatagramQueue(p.scheduleSending, p.conn.logger)
 
 	// Create sentPackethandler and receivedPacketHandler for sending and receiving Packets
 	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(
-		0,
-		protocol.MaxPacketBufferSize,
+		1,
+		getMaxPacketSize(p.pathConn.RemoteAddr()),
 		p.rttStats,
 		true,
 		p.conn.getPerspective(),
-		nil,
-		p.conn.logger,
-	)
-
-	initialStream := newCryptoStream()
-	handshakeStream := newCryptoStream()
-
-	cs, clientHelloWritten := handshake.NewCryptoSetupClient(
-		initialStream,
-		handshakeStream,
-		p.conn.origDestConnID,
-		p.LocalAddr(),
-		p.RemoteAddr(),
-		p.conn.peerParams,
-		&handshakeRunner{
-			onReceivedParams:    p.conn.handleTransportParameters,
-			onError:             p.conn.closeLocal,
-			dropKeys:            p.conn.dropEncryptionLevel,
-			onHandshakeComplete: func() { close(p.conn.handshakeCompleteChan) },
-		},
-		p.conn.tlsconfig,
-		false,
-		p.rttStats,
 		p.conn.tracer,
 		p.conn.logger,
-		p.conn.version,
 	)
 
 	// Set path to be available
 	p.status.Store(true)
+
+	go p.run()
 }
 
 func (p *path) close() error {
-	p.sentPacketHandler.DropPackets(protocol.Encryption1RTT)
+	<-p.runClosed
 	p.status.Store(false)
 	return nil
 }
@@ -210,6 +134,7 @@ func (p *path) run() {
 	defer p.ctxCancel()
 
 	p.timer = *newTimer()
+
 runLoop:
 	for {
 		// Close immediately if requested
@@ -219,7 +144,7 @@ runLoop:
 		default:
 		}
 
-		p.maybeResetTimer()
+		//p.maybeResetTimer()
 
 		select {
 		case <-p.closeChan:
@@ -228,13 +153,14 @@ runLoop:
 			p.timer.SetRead()
 			select {
 			case p.conn.pathTimers <- p:
-			// XXX (QDC): don't remain stuck here!
+				log.Printf("Stuck 1")
 			case <-p.closeChan:
 				break runLoop
 			case <-p.sentPacket:
-				// Don't remain stuck here!
+				log.Printf("Stuck 2")
 			}
 		case <-p.sentPacket:
+			log.Printf("Stuck 3")
 			// Used to reset the path timer
 		}
 	}
@@ -242,9 +168,11 @@ runLoop:
 	if err != nil {
 		return
 	}
-	p.sendQueue.Close()
+	//p.sendQueue.Close()
 	p.timer.Stop()
 	p.runClosed <- struct{}{}
+	return
+
 }
 
 func (p *path) SendingAllowed() bool {
@@ -258,29 +186,19 @@ func (p *path) idleTimeoutStartTime() time.Time {
 	return utils.MaxTime(p.lastPacketReceivedTime, p.conn.firstAckElicitingPacketAfterIdleSentTime)
 }
 
-func (p *path) maybeResetTimer() {
-	var deadline time.Time
-	deadline = p.idleTimeoutStartTime().Add(p.idleTimeout())
+/*
+	func (p *path) maybeResetTimer() {
+		var deadline time.Time
+		deadline = p.idleTimeoutStartTime().Add(p.idleTimeout)
 
-	p.timer.SetTimer(
-		deadline,
-		p.receivedPacketHandler.GetAlarmTimeout(),
-		p.sentPacketHandler.GetLossDetectionTimeout(),
-		p.pacingDeadline,
-	)
-}
-
-func (p *path) idleTimeout() time.Duration {
-	cryptoSetup := p.conn.cryptoStreamManager
-	if cryptoSetup != nil {
-		if p.status.Load() && p.conn.handshakeComplete {
-			return p.conn.config.MaxIdleTimeout
-		}
-		return p.conn.config.handshakeTimeout()
+		p.timer.SetTimer(
+			deadline,
+			p.receivedPacketHandler.GetAlarmTimeout(),
+			p.sentPacketHandler.GetLossDetectionTimeout(),
+			p.pacingDeadline,
+		)
 	}
-	return time.Second
-}
-
+*/
 func (p *path) closeLocal(e error) {
 	p.conn.closeOnce.Do(func() {
 		if e == nil {
@@ -394,38 +312,55 @@ func (p *path) GetPathID() string {
 }
 
 func (p *path) LocalAddr() net.Addr {
-	return p.srcAddress
+	return p.pathConn.LocalAddr()
 }
 
 func (p *path) RemoteAddr() net.Addr {
-	return p.destAddress
+	return p.pathConn.RemoteAddr()
 }
 
-// scheduleSending signals that we have data for sending
-func (p *path) scheduleSending() {
-	select {
-	case p.conn.sendingScheduled <- struct{}{}:
-	default:
+func (p *path) sendPathAbandon(e error) ([]byte, error) {
+	var packetMP *coalescedPacketMP
+	var packet *coalescedPacket
+	var err error
+	var transportErr *qerr.TransportError
+	var applicationErr *qerr.ApplicationError
+	if errors.As(e, &applicationErr) {
+		packetMP, err = p.conn.packerMP.PackPathAbandon(applicationErr, 0, p.conn.version)
+	} else if errors.As(e, &transportErr) {
+		packet, err = p.conn.packer.PackConnectionClose(transportErr, p.conn.version)
+	} else {
+		packet, err = p.conn.packer.PackConnectionClose(&qerr.TransportError{
+			ErrorCode:    qerr.InternalError,
+			ErrorMessage: fmt.Sprintf("connection BUG: unspecified error type (msg: %s)", e.Error()),
+		}, p.conn.version)
 	}
+	if err != nil {
+		return nil, err
+	}
+	if packet != nil {
+		p.conn.logCoalescedPacket(packet)
+		return packet.buffer.Data, p.pathConn.Write(packet.buffer.Data)
+	} else if packetMP != nil {
+		p.conn.logCoalescedPacketMP(packetMP)
+		return packetMP.buffer.Data, p.pathConn.Write(packet.buffer.Data)
+	}
+
+	return nil, nil
 }
 
-func (p *path) newFlowController(id protocol.StreamID) flowcontrol.StreamFlowController {
-	initialSendWindow := p.conn.peerParams.InitialMaxStreamDataUni
-	if id.Type() == protocol.StreamTypeBidi {
-		if id.InitiatedBy() == p.conn.perspective {
-			initialSendWindow = p.conn.peerParams.InitialMaxStreamDataBidiRemote
-		} else {
-			initialSendWindow = p.conn.peerParams.InitialMaxStreamDataBidiLocal
-		}
-	}
-	return flowcontrol.NewStreamFlowController(
-		id,
-		p.conn.connFlowController,
-		protocol.ByteCount(p.conn.config.InitialStreamReceiveWindow),
-		protocol.ByteCount(p.conn.config.MaxStreamReceiveWindow),
-		initialSendWindow,
-		p.conn.onHasStreamWindowUpdate,
-		p.rttStats,
-		p.conn.logger,
-	)
+func (p* path) validatePeer(dest net.UDPAddr) bool{
+
+	//conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(dest.String()), Port: 0})
+	/*if err != nil{
+		return false
+	}*/
+	validateData := [8]byte{1,3,3,7}
+	w := &wire.PathChallengeFrame{Data: validateData}
+	p.conn.queueControlFrame(w)
+	// warte bis PATH_RESPONSE zurückkommt dann true ansonsten false
+
+
+
+	return false
 }
