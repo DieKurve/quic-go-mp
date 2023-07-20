@@ -48,3 +48,16 @@ func ConvertAckFrame(f *wire.AckFrame) *logging.AckFrame {
 	}
 	return ack
 }
+
+func ConvertAckMPFrame(f *wire.AckMPFrame) *logging.AckMPFrame {
+	ranges := make([]wire.AckRange, 0, len(f.AckRanges))
+	ranges = append(ranges, f.AckRanges...)
+	ack := &logging.AckMPFrame{
+		AckRanges: ranges,
+		DelayTime: f.DelayTime,
+		ECNCE:     f.ECNCE,
+		ECT0:      f.ECT0,
+		ECT1:      f.ECT1,
+	}
+	return ack
+}
