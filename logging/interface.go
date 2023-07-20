@@ -122,6 +122,8 @@ type ConnectionTracer interface {
 	RestoredTransportParameters(parameters *TransportParameters) // for 0-RTT
 	SentLongHeaderPacket(hdr *ExtendedHeader, size ByteCount, ack *AckFrame, frames []Frame)
 	SentShortHeaderPacket(hdr *ShortHeader, size ByteCount, ack *AckFrame, frames []Frame)
+	SentLongHeaderPacketMP(hdr *ExtendedHeader, size ByteCount, ack *AckMPFrame, frames []Frame)
+	SentShortHeaderPacketMP(hdr *ShortHeader, size ByteCount, ack *AckMPFrame, frames []Frame)
 	ReceivedVersionNegotiationPacket(dest, src ArbitraryLenConnectionID, _ []VersionNumber)
 	ReceivedRetry(*Header)
 	ReceivedLongHeaderPacket(hdr *ExtendedHeader, size ByteCount, frames []Frame)

@@ -228,7 +228,7 @@ func (h *multiPathTracker) maybeQueueAckMP(pn protocol.PacketNumber, rcvTime tim
 	// always acknowledge the first packet
 	if h.lastAck == nil {
 		if !h.ackQueued {
-			h.logger.Debugf("\tQueueing ACK because the first packet should be acknowledged.")
+			h.logger.Debugf("\tQueueing ACK_MP because the first packet should be acknowledged.")
 		}
 		h.ackQueued = true
 		return
@@ -245,7 +245,7 @@ func (h *multiPathTracker) maybeQueueAckMP(pn protocol.PacketNumber, rcvTime tim
 	// missing packets we reported in the previous ack, send an ACK immediately.
 	if wasMissing {
 		if h.logger.Debug() {
-			h.logger.Debugf("\tQueueing ACK because packet %d was missing before.", pn)
+			h.logger.Debugf("\tQueueing ACK_MP because packet %d was missing before.", pn)
 		}
 		h.ackQueued = true
 	}
@@ -253,19 +253,19 @@ func (h *multiPathTracker) maybeQueueAckMP(pn protocol.PacketNumber, rcvTime tim
 	// send an ACK every 2 ack-eliciting packets
 	if h.ackElicitingPacketsReceivedSinceLastAck >= packetsBeforeAck {
 		if h.logger.Debug() {
-			h.logger.Debugf("\tQueueing ACK because packet %d packets were received after the last ACK (using initial threshold: %d).", h.ackElicitingPacketsReceivedSinceLastAck, packetsBeforeAck)
+			h.logger.Debugf("\tQueueing ACK_MP because packet %d packets were received after the last ACK_MP (using initial threshold: %d).", h.ackElicitingPacketsReceivedSinceLastAck, packetsBeforeAck)
 		}
 		h.ackQueued = true
 	} else if h.ackAlarm.IsZero() {
 		if h.logger.Debug() {
-			h.logger.Debugf("\tSetting ACK timer to max ack delay: %s", h.maxAckDelay)
+			h.logger.Debugf("\tSetting ACK_MP timer to max ack delay: %s", h.maxAckDelay)
 		}
 		h.ackAlarm = rcvTime.Add(h.maxAckDelay)
 	}
 
 	// Queue an ACK if there are new missing packets to report.
 	if h.hasNewMissingPacketsMP() {
-		h.logger.Debugf("\tQueuing ACK because there's a new missing packet to report.")
+		h.logger.Debugf("\tQueuing ACK_MP because there's a new missing packet to report.")
 		h.ackQueued = true
 	}
 
@@ -317,7 +317,7 @@ func (h *multiPathTracker) GetAckMPFrame(onlyIfQueued bool) *wire.AckMPFrame {
 			return nil
 		}
 		if h.logger.Debug() && !h.ackQueued && !h.ackAlarm.IsZero() {
-			h.logger.Debugf("Sending ACK because the ACK timer expired.")
+			h.logger.Debugf("Sending ACK_MP because the ACK_MP timer expired.")
 		}
 	}
 

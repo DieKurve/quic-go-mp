@@ -2104,6 +2104,16 @@ func (s *connection) sendPackedCoalescedPacket(packet *coalescedPacket, now time
 	s.sendQueue.Send(packet.buffer)
 }
 
+func (s *connection) sendPackedCoalescedPacketMP(packet *coalescedPacketMP, now time.Time) {
+	s.logCoalescedPacketMP(packet)
+	for _, p := range packet.longHdrPackets {
+		if s.firstAckElicitingPacketAfterIdleSentTime.IsZero() && p.IsAckEliciting() {
+			s.firstAckElicitingPacketAfterIdleSentTime = now
+		}
+		s.sentPacketHandler.SentPacket(p.ToAckHandlerPacket(now, s.retransmissionQueue))
+	}
+	if p := packet.shortHdrPacket; p != nil {
+		if s.firstAckElicitingPacketAfterIdleSentTime.IsZero() && p.IsAckEliciting() {
 func (s *connection) sendConnectionClose(e error) ([]byte, error) {
 	var packet *coalescedPacket
 	var err error

@@ -283,7 +283,33 @@ func (t *connectionTracer) SentShortHeaderPacket(hdr *logging.ShortHeader, packe
 	t.sentPacket(*transformShortHeader(hdr), packetSize, 0, ack, frames)
 }
 
+func (t *connectionTracer) SentShortHeaderPacketMP(hdr *logging.ShortHeader, packetSize logging.ByteCount, ack *logging.AckMPFrame, frames []logging.Frame) {
+	t.sentPacketMP(*transformShortHeader(hdr), packetSize, 0, ack, frames)
+}
+
 func (t *connectionTracer) sentPacket(hdr gojay.MarshalerJSONObject, packetSize, payloadLen logging.ByteCount, ack *logging.AckFrame, frames []logging.Frame) {
+	numFrames := len(frames)
+	if ack != nil {
+		numFrames++
+	}
+	fs := make([]frame, 0, numFrames)
+	if ack != nil {
+		fs = append(fs, frame{Frame: ack})
+	}
+	for _, f := range frames {
+		fs = append(fs, frame{Frame: f})
+	}
+	t.mutex.Lock()
+	t.recordEvent(time.Now(), &eventPacketSent{
+		Header:        hdr,
+		Length:        packetSize,
+		PayloadLength: payloadLen,
+		Frames:        fs,
+	})
+	t.mutex.Unlock()
+}
+
+func (t *connectionTracer) sentPacketMP(hdr gojay.MarshalerJSONObject, packetSize, payloadLen logging.ByteCount, ack *logging.AckMPFrame, frames []logging.Frame) {
 	numFrames := len(frames)
 	if ack != nil {
 		numFrames++
