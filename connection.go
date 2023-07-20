@@ -1541,6 +1541,16 @@ func (s *connection) handlePathChallengeFrame(frame *wire.PathChallengeFrame) {
 	s.queueControlFrame(&wire.PathResponseFrame{Data: frame.Data})
 }
 
+func (s *connection) handlePathResponeFrame(frame *wire.PathResponseFrame) error {
+	if frame.Data != s.pathChallenge {
+		return &qerr.TransportError{
+			ErrorCode:    qerr.ProtocolViolation,
+			ErrorMessage: "PATH_RESPONSE data is not equal to the sent PATH_CHALLENGE data",
+		}
+	}
+	return nil
+}
+
 func (s *connection) handleNewTokenFrame(frame *wire.NewTokenFrame) error {
 	if s.perspective == protocol.PerspectiveServer {
 		return &qerr.TransportError{
@@ -1645,16 +1655,6 @@ func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame, pathCI
 		FrameType:    frame.FrameType,
 	}
 
-}
-
-func (s *connection) handlePathResponeFrame(frame *wire.PathResponseFrame) error {
-	/*if frame.Data != pathChallengeData{
-		return &qerr.TransportError{
-			ErrorCode: qerr.ProtocolViolation,
-			ErrorMessage: "PATH_RESPONSE data is not equal to PATH_CHALLENGE data",
-		}
-	}*/
-	return nil
 }
 
 // closeLocal closes the connection and send a CONNECTION_CLOSE containing the error
