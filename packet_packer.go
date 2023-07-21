@@ -28,6 +28,8 @@ type packer interface {
 
 	HandleTransportParameters(*wire.TransportParameters)
 	SetToken([]byte)
+
+	ConvertToMultipath(*packetPacker, ackMPFrameSource) *packetPackerMP
 }
 
 type packerMP interface {
@@ -299,6 +301,7 @@ type packetPackerMP struct {
 }
 
 var _ packer = &packetPacker{}
+var _ packerMP = &packetPackerMP{}
 
 func newPacketPacker(srcConnID protocol.ConnectionID, getDestConnID func() protocol.ConnectionID, initialStream cryptoStream, handshakeStream cryptoStream, packetNumberManager packetNumberManager, retransmissionQueue *retransmissionQueue, remoteAddr net.Addr, cryptoSetup sealingManager, framer frameSource, acks ackFrameSource, datagramQueue *datagramQueue, perspective protocol.Perspective) *packetPacker {
 	return &packetPacker{
@@ -1996,4 +1999,24 @@ func (p *packetPackerMP) HandleTransportParameters(params *wire.TransportParamet
 	if params.MaxUDPPayloadSize != 0 {
 		p.maxPacketSize = utils.Min(p.maxPacketSize, params.MaxUDPPayloadSize)
 	}
+}
+
+func (p *packetPacker) ConvertToMultipath(packetPacker *packetPacker, acks ackMPFrameSource) *packetPackerMP{
+	multipathPacker := packetPackerMP{
+		srcConnID:              packetPacker.srcConnID,
+		getDestConnID:          packetPacker.getDestConnID,
+		perspective:            packetPacker.perspective,
+		cryptoSetup:            packetPacker.cryptoSetup,
+		initialStream:          packetPacker.initialStream,
+		handshakeStream:        packetPacker.handshakeStream,
+		token:                  packetPacker.token,
+		pnManager:              packetPacker.pnManager,
+		framer:                 packetPacker.framer,
+		acks:                   acks,
+		datagramQueue:          packetPacker.datagramQueue,
+		retransmissionQueue:    packetPacker.retransmissionQueue,
+		maxPacketSize:          packetPacker.maxPacketSize,
+		numNonAckElicitingAcks: packetPacker.numNonAckElicitingAcks,
+	}
+	return &multipathPacker
 }

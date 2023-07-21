@@ -18,7 +18,7 @@ func NewAckHandler(
 	tracer logging.ConnectionTracer,
 	logger utils.Logger,
 ) (SentPacketHandler, ReceivedPacketHandler) {
-	sph := newSentPacketHandler(initialPacketNumber, initialMaxDatagramSize, rttStats, clientAddressValidated, pers, tracer, logger)
+	sph := newSentPacketHandler(initialPacketNumber, initialMaxDatagramSize, rttStats, clientAddressValidated, pers, tracer, logger, false)
 	return sph, newReceivedSinglePathPacketHandler(sph, rttStats, logger)
 }
 
@@ -29,8 +29,9 @@ func NewAckMPHandler(initialPacketNumber protocol.PacketNumber,
 	pers protocol.Perspective,
 	tracer logging.ConnectionTracer,
 	logger utils.Logger,
+	multipath bool,
 ) (SentPacketHandler, ReceivedMPPacketHandler) {
-	sph := newSentPacketHandler(initialPacketNumber, initialMaxDatagramSize, rttStats, clientAddressValidated, pers, tracer, logger)
+	sph := newSentPacketHandlerMP(initialPacketNumber, initialMaxDatagramSize, rttStats, clientAddressValidated, pers, tracer, logger, multipath)
 	return sph, newReceivedMultiPathPacketHandler(sph, rttStats, logger)
 
 }

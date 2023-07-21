@@ -69,6 +69,8 @@ type sentPacketHandler struct {
 
 	handshakeConfirmed bool
 
+	multipathEnabled bool
+
 	// lowestNotConfirmedAcked is the lowest packet number that we sent an ACK for, but haven't received confirmation, that this ACK actually arrived
 	// example: we send an ACK for packets 90-100 with packet number 20
 	// once we receive an ACK from the peer for packet 20, the lowestNotConfirmedAcked is 101
@@ -98,6 +100,11 @@ type sentPacketHandler struct {
 	logger utils.Logger
 }
 
+type sentPacketHandlerMP struct {
+	*sentPacketHandler
+	appDataPacketsMP *packetNumberSpace
+}
+
 var (
 	_ SentPacketHandler = &sentPacketHandler{}
 	_ sentPacketTracker = &sentPacketHandler{}
@@ -113,6 +120,7 @@ func newSentPacketHandler(
 	pers protocol.Perspective,
 	tracer logging.ConnectionTracer,
 	logger utils.Logger,
+	multipath bool,
 ) *sentPacketHandler {
 	congestion := congestion.NewCubicSender(
 		congestion.DefaultClock{},
@@ -133,6 +141,32 @@ func newSentPacketHandler(
 		perspective:                    pers,
 		tracer:                         tracer,
 		logger:                         logger,
+		multipathEnabled: 				multipath,
+	}
+}
+
+// clientAddressValidated indicates whether the address was validated beforehand by an address validation token.
+// If the address was validated, the amplification limit doesn't apply. It has no effect for a client.
+func newSentPacketHandlerMP(
+	initialPN protocol.PacketNumber,
+	initialMaxDatagramSize protocol.ByteCount,
+	rttStats *utils.RTTStats,
+	clientAddressValidated bool,
+	pers protocol.Perspective,
+	tracer logging.ConnectionTracer,
+	logger utils.Logger,
+	multipath bool,
+) *sentPacketHandlerMP {
+	return &sentPacketHandlerMP{sentPacketHandler: newSentPacketHandler(
+		initialPN,
+		initialMaxDatagramSize,
+		rttStats,
+		clientAddressValidated,
+		pers,
+		tracer,
+		logger,
+		multipath,
+	),
 	}
 }
 
@@ -165,10 +199,13 @@ func (h *sentPacketHandler) dropPackets(encLevel protocol.EncryptionLevel) {
 	// remove outstanding packets from bytes_in_flight
 	if encLevel == protocol.EncryptionInitial || encLevel == protocol.EncryptionHandshake {
 		pnSpace := h.getPacketNumberSpace(encLevel)
-		pnSpace.history.Iterate(func(p *Packet) (bool, error) {
+		err := pnSpace.history.Iterate(func(p *Packet) (bool, error) {
 			h.removeFromBytesInFlight(p)
 			return true, nil
 		})
+		if err != nil {
+			return 
+		}
 	}
 	// drop the packet history
 	//nolint:exhaustive // Not every packet number space can be dropped.
@@ -182,14 +219,20 @@ func (h *sentPacketHandler) dropPackets(encLevel protocol.EncryptionLevel) {
 		// and not when the client drops 0-RTT keys when the handshake completes.
 		// When 0-RTT is rejected, all application data sent so far becomes invalid.
 		// Delete the packets from the history and remove them from bytes_in_flight.
-		h.appDataPackets.history.Iterate(func(p *Packet) (bool, error) {
+		err := h.appDataPackets.history.Iterate(func(p *Packet) (bool, error) {
 			if p.EncryptionLevel != protocol.Encryption0RTT {
 				return false, nil
 			}
 			h.removeFromBytesInFlight(p)
-			h.appDataPackets.history.Remove(p.PacketNumber)
+			err := h.appDataPackets.history.Remove(p.PacketNumber)
+			if err != nil {
+				return false, err
+			}
 			return true, nil
 		})
+		if err != nil {
+			return 
+		}
 	default:
 		panic(fmt.Sprintf("Cannot drop keys for encryption level %s", encLevel))
 	}
@@ -258,6 +301,15 @@ func (h *sentPacketHandler) getPacketNumberSpace(encLevel protocol.EncryptionLev
 		return h.handshakePackets
 	case protocol.Encryption0RTT, protocol.Encryption1RTT:
 		return h.appDataPackets
+	default:
+		panic("invalid packet number space")
+	}
+}
+
+func (h *sentPacketHandlerMP) getPacketNumberSpace(encLevel protocol.EncryptionLevel) *packetNumberSpace {
+	switch encLevel {
+	case protocol.Encryption0RTT, protocol.Encryption1RTT:
+		return h.appDataPacketsMP
 	default:
 		panic("invalid packet number space")
 	}
@@ -954,7 +1006,7 @@ func (h *sentPacketHandler) queueFramesForRetransmission(p *Packet) {
 func (h *sentPacketHandler) ResetForRetry() error {
 	h.bytesInFlight = 0
 	var firstPacketSendTime time.Time
-	h.initialPackets.history.Iterate(func(p *Packet) (bool, error) {
+	err := h.initialPackets.history.Iterate(func(p *Packet) (bool, error) {
 		if firstPacketSendTime.IsZero() {
 			firstPacketSendTime = p.SendTime
 		}
@@ -964,14 +1016,20 @@ func (h *sentPacketHandler) ResetForRetry() error {
 		h.queueFramesForRetransmission(p)
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
 	// All application data packets sent at this point are 0-RTT packets.
 	// In the case of a Retry, we can assume that the server dropped all of them.
-	h.appDataPackets.history.Iterate(func(p *Packet) (bool, error) {
+	err = h.appDataPackets.history.Iterate(func(p *Packet) (bool, error) {
 		if !p.declaredLost && !p.skippedPacket {
 			h.queueFramesForRetransmission(p)
 		}
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
 
 	// Only use the Retry to estimate the RTT if we didn't send any retransmission for the Initial.
 	// Otherwise, we don't know which Initial the Retry was sent in response to.
