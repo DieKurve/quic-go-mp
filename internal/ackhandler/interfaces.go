@@ -12,6 +12,7 @@ type SentPacketHandler interface {
 	// SentPacket may modify the packet
 	SentPacket(packet *Packet)
 	ReceivedAck(ackFrame *wire.AckFrame, encLevel protocol.EncryptionLevel, recvTime time.Time) (bool /* 1-RTT packet acked */, error)
+	ReceivedAckMP(ackMPFrame *wire.AckMPFrame, encLevel protocol.EncryptionLevel, recvTime time.Time) (bool, error)
 	ReceivedBytes(protocol.ByteCount)
 	DropPackets(protocol.EncryptionLevel)
 	ResetForRetry() error
@@ -33,7 +34,7 @@ type SentPacketHandler interface {
 
 	GetLossDetectionTimeout() time.Time
 	OnLossDetectionTimeout() error
-	ReceivedAckMP(ackMPFrame *wire.AckMPFrame, encLevel protocol.EncryptionLevel, recvTime time.Time) (bool, error)
+
 }
 
 type sentPacketTracker interface {
