@@ -175,8 +175,8 @@ type connection struct {
 
 	unpacker      unpacker
 	frameParser   wire.FrameParser
-	packer        packer
-	packerMP      packerMP
+	packer        *packetPacker
+	packerMP      *packetPackerMP
 	mtuDiscoverer mtuDiscoverer // initialized when the handshake completes
 
 	oneRTTStream        cryptoStream // only set for the server
@@ -400,6 +400,7 @@ var newConnection = func(
 			s.perspective,
 			s.tracer,
 			s.logger,
+			s.multipathEnabled,
 		)
 		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)
 		//s.receivedPacketHandler = nil
@@ -547,6 +548,7 @@ var newClientConnection = func(
 			s.perspective,
 			s.tracer,
 			s.logger,
+			s.multipathEnabled,
 		)
 		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)
 		//s.receivedPacketHandler = nil
@@ -647,6 +649,8 @@ runLoop:
 		if s.receivedPacketHandlerMP != nil {
 		s.maybeResetTimer()
 		}
+
+		s.packerMP = s.packer.ConvertToMultipath(s.packer, s.receivedPacketHandlerMP)
 
 		var processedUndecryptablePacket bool
 		if len(s.undecryptablePacketsToProcess) > 0 {
@@ -1327,13 +1331,14 @@ func (s *connection) handleUnpackedLongHeaderPacket(
 	s.firstAckElicitingPacketAfterIdleSentTime = time.Time{}
 	s.keepAlivePingSent = false
 
-	var log func([]logging.Frame)
+	var logPacket func([]logging.Frame)
 	if s.tracer != nil {
-		log = func(frames []logging.Frame) {
+		logPacket = func(frames []logging.Frame) {
 			s.tracer.ReceivedLongHeaderPacket(packet.hdr, packetSize, frames)
 		}
 	}
-	isAckEliciting, err := s.handleFrames(packet.data, packet.hdr.DestConnectionID, packet.encryptionLevel, log)
+	log.Printf("Type: %s | Destination ID: %s ", packet.hdr.Type.String(),packet.hdr.DestConnectionID.String())
+	isAckEliciting, err := s.handleFrames(packet.data, packet.hdr.DestConnectionID, packet.encryptionLevel, logPacket)
 	if err != nil {
 		return err
 	}
@@ -1363,7 +1368,7 @@ func (s *connection) handleFrames(
 	data []byte,
 	destConnID protocol.ConnectionID,
 	encLevel protocol.EncryptionLevel,
-	log func([]logging.Frame),
+	logFrame func([]logging.Frame),
 ) (isAckEliciting bool, _ error) {
 	// Only used for tracing.
 	// If we're not tracing, this slice will always remain empty.
@@ -1382,7 +1387,8 @@ func (s *connection) handleFrames(
 		}
 		// Only process frames now if we're not logging.
 		// If we're logging, we need to make sure that the packet_received event is logged first.
-		if log == nil {
+		if logFrame == nil {
+			log.Printf("Type: %s | ConnID: %s", reflect.TypeOf(frame).String(), destConnID.String())
 			if err := s.handleFrame(frame, encLevel, destConnID); err != nil {
 				return false, err
 			}
@@ -1391,12 +1397,12 @@ func (s *connection) handleFrames(
 		}
 	}
 
-	if log != nil {
+	if logFrame != nil {
 		fs := make([]logging.Frame, len(frames))
 		for i, frame := range frames {
 			fs[i] = logutils.ConvertFrame(frame)
 		}
-		log(fs)
+		logFrame(fs)
 		for _, frame := range frames {
 			if err := s.handleFrame(frame, encLevel, destConnID); err != nil {
 				return false, err
@@ -1434,9 +1440,9 @@ func (s *connection) handleFrame(f wire.Frame, encLevel protocol.EncryptionLevel
 		err = s.handleStopSendingFrame(frame)
 	case *wire.PingFrame:
 	case *wire.PathChallengeFrame:
-		s.handlePathChallengeFrame(frame)
+		s.handlePathChallengeFrame(frame, destConnID)
 	case *wire.PathResponseFrame:
-		err = s.handlePathResponeFrame(frame)
+		err = s.handlePathResponseFrame(frame, destConnID)
 	case *wire.NewTokenFrame:
 		err = s.handleNewTokenFrame(frame)
 	case *wire.NewConnectionIDFrame:
@@ -1554,16 +1560,24 @@ func (s *connection) handleStopSendingFrame(frame *wire.StopSendingFrame) error 
 	return nil
 }
 
-func (s *connection) handlePathChallengeFrame(frame *wire.PathChallengeFrame) {
+func (s *connection) handlePathChallengeFrame(frame *wire.PathChallengeFrame, destID protocol.ConnectionID) {
+	log.Printf("Sending Path Response to %s", destID.String())
 	s.queueControlFrame(&wire.PathResponseFrame{Data: frame.Data})
 }
 
-func (s *connection) handlePathResponeFrame(frame *wire.PathResponseFrame) error {
-	if frame.Data != s.pathChallenge {
-		return &qerr.TransportError{
-			ErrorCode:    qerr.ProtocolViolation,
-			ErrorMessage: "PATH_RESPONSE data is not equal to the sent PATH_CHALLENGE data",
+func (s *connection) handlePathResponseFrame(frame *wire.PathResponseFrame, destID protocol.ConnectionID) error {
+	currentPath := s.paths[destID]
+	if currentPath != nil {
+		if frame.Data != currentPath.pathChallenge {
+			return &qerr.TransportError{
+				ErrorCode:    qerr.ProtocolViolation,
+				ErrorMessage: "PATH_RESPONSE data is not equal to the sent PATH_CHALLENGE data",
+			}
+		} else {
+			<-currentPath.pathValidation
 		}
+	} else {
+		return errors.New("empty Destination Connection ID")
 	}
 	return nil
 }
@@ -1582,6 +1596,7 @@ func (s *connection) handleNewTokenFrame(frame *wire.NewTokenFrame) error {
 }
 
 func (s *connection) handleNewConnectionIDFrame(f *wire.NewConnectionIDFrame) error {
+	log.Printf("Type: %s | ConnID: %s | SeqNum: %d", reflect.TypeOf(f), f.ConnectionID.String(), f.SequenceNumber)
 	return s.connIDManager.Add(f)
 }
 
@@ -1665,6 +1680,8 @@ func (s *connection) handlePathAbandonFrame(frame *wire.PathAbandonFrame, pathCI
 	// Send RETIRE_CONNECTION_ID Frame
 
 	s.logger.Infof("Path %s closed. Reason: %s", pathCID, frame.ReasonPhrase)
+
+	<-s.paths[pathCID].runClosed
 
 	return &qerr.TransportError{
 		ErrorCode:    qerr.TransportErrorCode(frame.ErrorCode),
