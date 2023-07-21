@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/wire"
 	"github.com/quic-go/quic-go/logging"
 	"log"
 	"net"
@@ -106,12 +105,11 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tl
 		newPath.pathConn = newSendConn(pconn, udpAddrDest, nil)
 	}
 
+	pm.connection.paths[pathID] = newPath
+
+
 	newPath.setup()
 
-	newPath.pathChallenge = [8]byte{1,3,3,7}
-	pm.connection.queueControlFrame(&wire.PathChallengeFrame{Data: newPath.pathChallenge})
-
-	pm.connection.paths[pathID] = newPath
 	log.Printf("Created path %x on %s to %s", pathID, srcAddr, destAddr)
 	if pm.connection.logger.Debug() {
 		pm.connection.logger.Debugf("Created path %x on %s to %s", pathID, srcAddr, destAddr)
@@ -155,9 +153,9 @@ func (pm *pathManager) closePath(pathID protocol.ConnectionID) error {
 	}
 
 	// Delete path if all packets are either acknowledged or dropped
-
 	delete(pm.connection.paths, pathID)
 	pm.paths--
+	pm.connection.connIDGenerator.retireConnectionID(pathID)
 	return nil
 }
 
