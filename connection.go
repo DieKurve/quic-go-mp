@@ -146,7 +146,7 @@ type connection struct {
 	origDestConnID protocol.ConnectionID
 	retrySrcConnID *protocol.ConnectionID // only set for the client (and if a Retry was performed)
 
-	srcConnID protocol.ConnectionID
+	srcConnID    protocol.ConnectionID
 	srcConnIDLen int
 
 	perspective protocol.Perspective
@@ -242,8 +242,7 @@ type connection struct {
 	logger             utils.Logger
 	lastPathsFrameSent time.Time
 
-	tlsconfig *tls.Config
-
+	tlsconfig     *tls.Config
 	pathChallenge [8]byte
 }
 
@@ -383,6 +382,7 @@ var newConnection = func(
 	s.packer = newPacketPacker(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandler, s.datagramQueue, s.perspective)
 	s.unpacker = newPacketUnpacker(cs, s.srcConnIDLen)
 	s.cryptoStreamManager = newCryptoStreamManager(cs, initialStream, handshakeStream, s.oneRTTStream)
+
 	if s.multipathEnabled {
 		s.multipathEnabled = true
 		s.paths = map[protocol.ConnectionID]*path{}
@@ -392,7 +392,7 @@ var newConnection = func(
 		if err != nil {
 			return nil
 		}
-		s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
+		/*s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
 			0,
 			getMaxPacketSize(s.conn.RemoteAddr()),
 			s.rttStats,
@@ -402,11 +402,10 @@ var newConnection = func(
 			s.logger,
 			s.multipathEnabled,
 		)
-		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)
+		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)*/
 		//s.receivedPacketHandler = nil
 		//s.packer = nil
 	}
-	s.pathChallenge = [8]byte{1,3,3,7}
 	return s
 }
 
@@ -432,7 +431,7 @@ var newClientConnection = func(
 		config:                conf,
 		origDestConnID:        destConnID,
 		handshakeDestConnID:   destConnID,
-		srcConnID:			   srcConnID,
+		srcConnID:             srcConnID,
 		srcConnIDLen:          srcConnID.Len(),
 		perspective:           protocol.PerspectiveClient,
 		handshakeCompleteChan: make(chan struct{}),
@@ -540,7 +539,7 @@ var newClientConnection = func(
 		if err != nil {
 			return nil
 		}
-		s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
+		/*s.sentPacketHandler, s.receivedPacketHandlerMP = ackhandler.NewAckMPHandler(
 			0,
 			getMaxPacketSize(s.conn.RemoteAddr()),
 			s.rttStats,
@@ -553,8 +552,8 @@ var newClientConnection = func(
 		s.packerMP = newPacketPackerMP(srcConnID, s.connIDManager.Get, initialStream, handshakeStream, s.sentPacketHandler, s.retransmissionQueue, s.RemoteAddr(), cs, s.framer, s.receivedPacketHandlerMP, s.datagramQueue, s.perspective)
 		//s.receivedPacketHandler = nil
 		//s.packer = nil
+		*/
 	}
-	s.pathChallenge = [8]byte{1,3,3,7}
 	return s
 }
 
@@ -646,11 +645,7 @@ runLoop:
 		default:
 		}
 
-		if s.receivedPacketHandlerMP != nil {
 		s.maybeResetTimer()
-		}
-
-		s.packerMP = s.packer.ConvertToMultipath(s.packer, s.receivedPacketHandlerMP)
 
 		var processedUndecryptablePacket bool
 		if len(s.undecryptablePacketsToProcess) > 0 {
@@ -826,23 +821,12 @@ func (s *connection) maybeResetTimer() {
 			deadline = s.idleTimeoutStartTime().Add(s.idleTimeout)
 		}
 	}
-
-	if s.multipathEnabled {
-		s.timer.SetTimer(
-			deadline,
-			s.receivedPacketHandlerMP.GetAlarmTimeout(),
-			s.sentPacketHandler.GetLossDetectionTimeout(),
-			s.pacingDeadline,
-		)
-	} else {
-
-		s.timer.SetTimer(
-			deadline,
-			s.receivedPacketHandler.GetAlarmTimeout(),
-			s.sentPacketHandler.GetLossDetectionTimeout(),
-			s.pacingDeadline,
-		)
-	}
+	s.timer.SetTimer(
+		deadline,
+		s.receivedPacketHandler.GetAlarmTimeout(),
+		s.sentPacketHandler.GetLossDetectionTimeout(),
+		s.pacingDeadline,
+	)
 }
 
 func (s *connection) idleTimeoutStartTime() time.Time {
@@ -909,9 +893,6 @@ func (s *connection) handleHandshakeConfirmed() {
 			},
 		)
 	}
-	//s.packer = nil
-	//s.receivedPacketHandler = nil
-	log.Printf("Finished handshake")
 }
 
 func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
@@ -946,7 +927,6 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 				if s.tracer != nil {
 					s.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.ByteCount(len(data)), logging.PacketDropHeaderParseError)
 				}
-				log.Printf("error parsing packet, couldn't parse connection ID: %s", err)
 				s.logger.Debugf("error parsing packet, couldn't parse connection ID: %s", err)
 				break
 			}
@@ -954,7 +934,6 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 				if s.tracer != nil {
 					s.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.ByteCount(len(data)), logging.PacketDropUnknownConnectionID)
 				}
-				log.Printf("coalesced packet has different destination connection ID: %s, expected %s", destConnID, lastConnID)
 				s.logger.Debugf("coalesced packet has different destination connection ID: %s, expected %s", destConnID, lastConnID)
 				break
 			}
@@ -962,7 +941,6 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 
 		if wire.IsLongHeaderPacket(p.data[0]) {
 			hdr, packetData, rest, err := wire.ParsePacket(p.data)
-			log.Printf("Type: %s from %s", hdr.PacketType(), rp.remoteAddr.String())
 			if err != nil {
 				if s.tracer != nil {
 					dropReason := logging.PacketDropHeaderParseError
@@ -971,7 +949,6 @@ func (s *connection) handlePacketImpl(rp *receivedPacket) bool {
 					}
 					s.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.ByteCount(len(data)), dropReason)
 				}
-				log.Printf("error parsing packet: %s", err)
 				s.logger.Debugf("error parsing packet: %s", err)
 				break
 			}
@@ -1031,7 +1008,6 @@ func (s *connection) handleShortHeaderPacket(p *receivedPacket, destConnID proto
 	}
 
 	if s.logger.Debug() {
-		log.Printf("<- Reading packet %d (%d bytes) for connection %s, 1-RTT", pn, p.Size(), destConnID)
 		s.logger.Debugf("<- Reading packet %d (%d bytes) for connection %s, 1-RTT", pn, p.Size(), destConnID)
 		wire.LogShortHeader(s.logger, destConnID, pn, pnLen, keyPhase)
 	}
@@ -1086,7 +1062,6 @@ func (s *connection) handleLongHeaderPacket(p *receivedPacket, hdr *wire.Header)
 		if s.tracer != nil {
 			s.tracer.DroppedPacket(logging.PacketTypeInitial, p.Size(), logging.PacketDropUnknownConnectionID)
 		}
-		log.Printf("Dropping Initial packet (%d bytes) with unexpected source connection ID: %s (expected %s)", p.Size(), hdr.SrcConnectionID, s.handshakeDestConnID)
 		s.logger.Debugf("Dropping Initial packet (%d bytes) with unexpected source connection ID: %s (expected %s)", p.Size(), hdr.SrcConnectionID, s.handshakeDestConnID)
 		return false
 	}
@@ -1302,7 +1277,6 @@ func (s *connection) handleUnpackedLongHeaderPacket(
 		if s.perspective == protocol.PerspectiveClient && packet.hdr.SrcConnectionID != s.handshakeDestConnID {
 			cid := packet.hdr.SrcConnectionID
 			s.logger.Debugf("Received first packet. Switching destination connection ID to: %s", cid)
-			log.Printf("Received first packet. Switching destination connection ID to: %s", cid)
 			s.handshakeDestConnID = cid
 			s.connIDManager.ChangeInitialConnID(cid)
 		}
@@ -1337,7 +1311,6 @@ func (s *connection) handleUnpackedLongHeaderPacket(
 			s.tracer.ReceivedLongHeaderPacket(packet.hdr, packetSize, frames)
 		}
 	}
-	log.Printf("Type: %s | Destination ID: %s ", packet.hdr.Type.String(),packet.hdr.DestConnectionID.String())
 	isAckEliciting, err := s.handleFrames(packet.data, packet.hdr.DestConnectionID, packet.encryptionLevel, logPacket)
 	if err != nil {
 		return err
@@ -1388,7 +1361,6 @@ func (s *connection) handleFrames(
 		// Only process frames now if we're not logging.
 		// If we're logging, we need to make sure that the packet_received event is logged first.
 		if logFrame == nil {
-			log.Printf("Type: %s | ConnID: %s", reflect.TypeOf(frame).String(), destConnID.String())
 			if err := s.handleFrame(frame, encLevel, destConnID); err != nil {
 				return false, err
 			}
@@ -1596,7 +1568,6 @@ func (s *connection) handleNewTokenFrame(frame *wire.NewTokenFrame) error {
 }
 
 func (s *connection) handleNewConnectionIDFrame(f *wire.NewConnectionIDFrame) error {
-	log.Printf("Type: %s | ConnID: %s | SeqNum: %d", reflect.TypeOf(f), f.ConnectionID.String(), f.SequenceNumber)
 	return s.connIDManager.Add(f)
 }
 
@@ -1911,7 +1882,7 @@ func (s *connection) applyTransportParameters() {
 	s.streamsMap.UpdateLimits(params)
 	if s.packer != nil {
 		s.packer.HandleTransportParameters(params)
-	} else if  s.packerMP != nil{
+	} else if s.packerMP != nil {
 		s.packerMP.HandleTransportParameters(params)
 	}
 
@@ -2393,7 +2364,6 @@ func (s *connection) logCoalescedPacket(packet *coalescedPacket) {
 			s.logger.Debugf("-> Sending coalesced packet (%d parts, %d bytes) for connection %s", len(packet.longHdrPackets), packet.buffer.Len(), s.logID)
 		} else {
 			s.logger.Debugf("-> Sending packet %d (%d bytes) for connection %s, %s", packet.longHdrPackets[0].header.PacketNumber, packet.buffer.Len(), s.logID, packet.longHdrPackets[0].EncryptionLevel())
-			log.Printf("-> Sending packet %d (%d bytes) for connection %s, %s", packet.longHdrPackets[0].header.PacketNumber, packet.buffer.Len(), s.logID, packet.longHdrPackets[0].EncryptionLevel())
 		}
 	}
 	for _, p := range packet.longHdrPackets {
@@ -2425,7 +2395,6 @@ func (s *connection) logCoalescedPacketMP(packet *coalescedPacketMP) {
 			s.logger.Debugf("-> Sending coalesced packet (%d parts, %d bytes) for connection %s", len(packet.longHdrPackets), packet.buffer.Len(), s.logID)
 		} else {
 			s.logger.Debugf("-> Sending packet %d (%d bytes) for connection %s, %s", packet.longHdrPackets[0].header.PacketNumber, packet.buffer.Len(), s.logID, packet.longHdrPackets[0].EncryptionLevel())
-			log.Printf("-> Sending packet %d (%d bytes) for connection %s, %s", packet.longHdrPackets[0].header.PacketNumber, packet.buffer.Len(), s.logID, packet.longHdrPackets[0].EncryptionLevel())
 		}
 	}
 	for _, p := range packet.longHdrPackets {
@@ -2513,6 +2482,7 @@ func (s *connection) tryQueueingUndecryptablePacket(p *receivedPacket, pt loggin
 
 func (s *connection) queueControlFrame(f wire.Frame) {
 	s.framer.QueueControlFrame(f)
+	log.Printf("Sending %s", reflect.TypeOf(f))
 	s.scheduleSending()
 }
 

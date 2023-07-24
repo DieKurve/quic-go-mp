@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -111,30 +112,6 @@ func (p *path) setup() {
 
 	p.sendQueuePath = newSendQueue(p.pathConn)
 
-	p.flowPathController = flowcontrol.NewPathFlowController(
-		protocol.ByteCount(p.conn.config.InitialConnectionReceiveWindow),
-		protocol.ByteCount(p.conn.config.MaxConnectionReceiveWindow),
-		p.conn.onHasConnectionWindowUpdate,
-		func(size protocol.ByteCount) bool {
-			if p.conn.config.AllowConnectionWindowIncrease == nil {
-				return true
-			}
-			return p.conn.config.AllowConnectionWindowIncrease(p.conn, uint64(size))
-		},
-		p.rttStats,
-		p.conn.logger,
-		)
-
-	p.streamsMap = newStreamsMap(
-		p,
-		p.newFlowController,
-		uint64(p.conn.config.MaxIncomingStreams),
-		uint64(p.conn.config.MaxIncomingUniStreams),
-		p.conn.perspective,
-	)
-
-	p.framer = newFramer(p.streamsMap)
-
 	now := time.Now()
 	p.lastPacketReceivedTime = now
 	p.creationTime = now
@@ -149,25 +126,13 @@ func (p *path) setup() {
 	// Initialize Timer
 	p.lastPacketReceivedTime = time.Now()
 
-	// Create sentPackethandler and receivedPacketHandler for sending and receiving Packets
-	p.sentPacketHandler, p.receivedPacketHandler = ackhandler.NewAckMPHandler(
-		1,
-		getMaxPacketSize(p.pathConn.RemoteAddr()),
-		p.rttStats,
-		true,
-		p.conn.getPerspective(),
-		p.conn.tracer,
-		p.conn.logger,
-		true,
-	)
-
 	// Validate the path (PATH_CHALLENGE -> Server | Server -> PATH_RESPONSE)
 	p.validatePeer()
 
 	select {
 	case <- p.pathValidation:
-	case <-time.After(10*time.Second):
-		log.Printf("Timeout path validation")
+	case <- time.After(10*time.Second):
+		log.Printf("Got no Path Repsonse Frame")
 	}
 
 	// Set path to be available
@@ -217,6 +182,7 @@ runLoop:
 			// Used to reset the path timer
 		}
 	}
+	// Packet sending
 	err := p.close()
 	if err != nil {
 		return
@@ -227,7 +193,6 @@ runLoop:
 	return
 
 }
-
 
 func (p *path) newFlowController(id protocol.StreamID) flowcontrol.StreamFlowController {
 	initialSendWindow := p.conn.peerParams.InitialMaxStreamDataUni
@@ -423,7 +388,9 @@ func (p* path) validatePeer() {
 		uint8(rand.Intn(math.MaxUint8 + 1)),
 		uint8(rand.Intn(math.MaxUint8 + 1)),
 	}
+
 	w := &wire.PathChallengeFrame{Data: p.pathChallenge}
+	log.Printf("Sending: %s | Data: %d", reflect.TypeOf(w), len(w.Data))
 	p.queueControlFrame(w)
 	return
 }
@@ -455,8 +422,9 @@ func (p *path) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
 }
 
 func (p *path) queueControlFrame(f wire.Frame) {
-	p.framer.QueueControlFrame(f)
-	p.scheduleSending()
+
+	p.conn.framer.QueueControlFrame(f)
+	p.conn.scheduleSending()
 }
 
 func (p *path) onHasStreamData(id protocol.StreamID) {
@@ -472,7 +440,7 @@ func (p *path) onStreamCompleted(id protocol.StreamID) {
 
 func (p *path) scheduleSending() {
 	select {
-	case p.sendingScheduled <- struct{}{}:
+	case p.conn.sendingScheduled <- struct{}{}:
 	default:
 	}
 }

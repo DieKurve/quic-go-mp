@@ -23,7 +23,6 @@ type pathManager struct {
 	destinationAddrs []*net.UDPAddr
 
 	// Handshaking
-	handshakeCompleteChan chan struct{}
 	handshakeComplete     bool
 	handshakeConfirmed    bool
 }
@@ -31,8 +30,6 @@ type pathManager struct {
 func (pm *pathManager) setup() error {
 	pm.runClosed = make(chan struct{}, 1)
 	pm.timer = time.NewTimer(0)
-
-	pm.handshakeCompleteChan = make(chan struct{}, 1)
 
 	pm.paths = 0
 
@@ -64,10 +61,10 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tl
 		return err
 	}
 
-	pathPacketHandler, err := getMultiplexer().AddConn(conn, pm.connection.config.ConnectionIDGenerator.ConnectionIDLen(), pm.connection.config.StatelessResetKey, pm.connection.config.Tracer)
+	/*pathPacketHandler, err := getMultiplexer().AddConn(conn, pm.connection.config.ConnectionIDGenerator.ConnectionIDLen(), pm.connection.config.StatelessResetKey, pm.connection.config.Tracer)
 	if err != nil {
 		return err
-	}
+	}*/
 
 	udpAddrDest, err := net.ResolveUDPAddr("udp", pm.connection.conn.RemoteAddr().String())
 	if err != nil {
@@ -89,14 +86,14 @@ func (pm *pathManager) createPath(srcAddr string, destAddr string, tlsconfig *tl
 		pm.connection.logger,
 	)*/
 
-	pathID, _ := pm.connection.config.ConnectionIDGenerator.GenerateConnectionID()
+	pathID := pm.connection.connIDManager.Get()
 
 	newPath := &path{
 		pathID: pathID,
 		conn:   pm.connection,
 	}
 
-	pathPacketHandler.Add(pathID, newPath.conn)
+	// pathPacketHandler.Add(pathID, newPath.conn)
 
 	if pm.connection.perspective == protocol.PerspectiveClient {
 		newPath.pathConn = newSendPconn(conn, udpAddrDest)
